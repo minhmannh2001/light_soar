@@ -8,10 +8,38 @@ type Props = {
   name: string;
 };
 
-function DAGEditButtons({ name }: Props) {
-  console.log('DAGEditButtons rendering with name:', name); // Debug log
+export default function DAGEditButtons({ name }: Props) {
   const appBarContext = React.useContext(AppBarContext);
   const navigate = useNavigate();
+
+  const handleRename = async () => {
+    const val = window.prompt('Please input the new DAG name', '');
+    if (!val) {
+      return;
+    }
+    if (val.indexOf(' ') != -1) {
+      alert('DAG name cannot contain space');
+      return;
+    }
+    const url = `${getConfig().apiURL}/dags/${name}?remoteNode=${appBarContext.selectedRemoteNode || 'local'
+      }`;
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        action: 'rename',
+        value: val,
+      }),
+    });
+    if (resp.ok) {
+      window.location.href = `/dags/${val}`;
+    } else {
+      const e = await resp.text();
+      alert(e);
+    }
+  };
 
   return (
     <Stack direction="row" spacing={1}>
@@ -19,53 +47,25 @@ function DAGEditButtons({ name }: Props) {
         variant="contained"
         color="primary"
         startIcon={<EditIcon />}
-        onClick={() => {
-          console.log('Edit button clicked, navigating to:', `/dags/${name}/edit`);
-          navigate(`/dags/${name}/edit`);
-        }}
+        onClick={() => navigate(`/dags/${name}/edit`)}
         sx={{
           backgroundColor: 'primary.main',
           '&:hover': {
             backgroundColor: 'primary.dark',
-          },
-          // Debug styles
-          border: '2px solid red',
-          padding: '10px 20px',
-          fontSize: '16px',
-          fontWeight: 'bold',
-          zIndex: 9999,
+          }
         }}
       >
-        Edit Workflow
+        Edit
       </Button>
       <Button
         variant="outlined"
-        onClick={async () => {
-          const val = window.prompt('Please input the new DAG name', '');
-          if (!val) {
-            return;
-          }
-          if (val.indexOf(' ') != -1) {
-            alert('DAG name cannot contain space');
-            return;
-          }
-          const url = `${getConfig().apiURL}/dags/${name}?remoteNode=${appBarContext.selectedRemoteNode || 'local'
-            }`;
-          const resp = await fetch(url, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              action: 'rename',
-              value: val,
-            }),
-          });
-          if (resp.ok) {
-            window.location.href = `/dags/${val}`;
-          } else {
-            const e = await resp.text();
-            alert(e);
+        onClick={handleRename}
+        sx={{
+          color: 'text.secondary',
+          borderColor: 'divider',
+          '&:hover': {
+            borderColor: 'primary.main',
+            color: 'primary.main',
           }
         }}
       >
@@ -98,5 +98,3 @@ function DAGEditButtons({ name }: Props) {
     </Stack>
   );
 }
-
-export default DAGEditButtons;

@@ -106,7 +106,6 @@ function DAGDetails() {
           >
             <Title>{data.Title}</Title>
             <Stack direction="row" spacing={2} alignItems="center">
-              <DAGEditButtons name={params.name} />
               <DAGStatusContext.Consumer>
                 {(status) => (
                   <DAGActions
@@ -119,6 +118,17 @@ function DAGDetails() {
                 )}
               </DAGStatusContext.Consumer>
             </Stack>
+          </Box>
+
+          <Box
+            sx={{
+              mx: 4,
+              mb: 2,
+              display: 'flex',
+              justifyContent: 'flex-end',
+            }}
+          >
+            <DAGEditButtons name={params.name} />
           </Box>
 
           {data.DAG?.Status?.Status != SchedulerStatus.None ? (
