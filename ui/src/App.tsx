@@ -4,6 +4,7 @@ import Layout from './Layout';
 import Dashboard from './pages';
 import DAGDetails from './pages/dags/dag';
 import DAGs from './pages/dags';
+import EditWorkflow from './pages/dags/edit';
 import { AppBarContext } from './contexts/AppBarContext';
 import { SWRConfig } from 'swr';
 import fetchJson from './lib/fetchJson';
@@ -57,6 +58,7 @@ function App({ config }: Props) {
                   <Route path="/dags/" element={<DAGs />} />
                   <Route path="/dags/:name/:tab" element={<DAGDetails />} />
                   <Route path="/dags/:name/" element={<DAGDetails />} />
+                  <Route path="/dags/:name/edit" element={<EditWorkflow />} />
                   <Route path="/search/" element={<Search />} />
                 </Routes>
               </Layout>

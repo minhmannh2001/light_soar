@@ -105,17 +105,20 @@ function DAGDetails() {
             }}
           >
             <Title>{data.Title}</Title>
-            <DAGStatusContext.Consumer>
-              {(status) => (
-                <DAGActions
-                  status={status.data}
-                  dag={data?.DAG?.DAG}
-                  name={params.name!}
-                  refresh={refreshFn}
-                  redirectTo={`${baseUrl}`}
-                />
-              )}
-            </DAGStatusContext.Consumer>
+            <Stack direction="row" spacing={2} alignItems="center">
+              <DAGEditButtons name={params.name} />
+              <DAGStatusContext.Consumer>
+                {(status) => (
+                  <DAGActions
+                    status={status.data}
+                    dag={data?.DAG?.DAG}
+                    name={params.name!}
+                    refresh={refreshFn}
+                    redirectTo={`${baseUrl}`}
+                  />
+                )}
+              </DAGStatusContext.Consumer>
+            </Stack>
           </Box>
 
           {data.DAG?.Status?.Status != SchedulerStatus.None ? (
@@ -138,8 +141,8 @@ function DAGDetails() {
                 <CalendarToday sx={{ mr: 0.5 }} />
                 {data?.DAG?.Status?.FinishedAt
                   ? moment(data.DAG.Status.FinishedAt).format(
-                      'MMM D, YYYY HH:mm:ss Z'
-                    )
+                    'MMM D, YYYY HH:mm:ss Z'
+                  )
                   : '--'}
               </Stack>
 
@@ -151,15 +154,15 @@ function DAGDetails() {
                 <TimerSharp sx={{ mr: 0.5 }} />
                 {data?.DAG?.Status?.FinishedAt
                   ? formatDuration(
-                      data?.DAG?.Status?.StartedAt,
-                      data?.DAG?.Status?.FinishedAt
-                    )
+                    data?.DAG?.Status?.StartedAt,
+                    data?.DAG?.Status?.FinishedAt
+                  )
                   : data?.DAG?.Status?.StartedAt
-                  ? formatDuration(
+                    ? formatDuration(
                       data?.DAG?.Status?.StartedAt,
                       moment().toISOString()
                     )
-                  : '--'}
+                    : '--'}
               </Stack>
             </Stack>
           ) : null}
@@ -177,13 +180,10 @@ function DAGDetails() {
               <LinkTab label="Spec" value={`${baseUrl}/spec`} />
               <LinkTab label="History" value={`${baseUrl}/history`} />
               {pathname == `${baseUrl}/log` ||
-              pathname == `${baseUrl}/scheduler-log` ? (
+                pathname == `${baseUrl}/scheduler-log` ? (
                 <Tab label="Log" value={pathname} />
               ) : null}
             </Tabs>
-            {pathname == `${baseUrl}/spec` ? (
-              <DAGEditButtons name={params.name} />
-            ) : null}
           </Stack>
 
           <Box sx={{ mx: 4, flex: 1 }}>

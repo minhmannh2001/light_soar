@@ -1,16 +1,45 @@
 import React from 'react';
 import { Button, Stack } from '@mui/material';
 import { AppBarContext } from '../../contexts/AppBarContext';
+import { useNavigate } from 'react-router-dom';
+import EditIcon from '@mui/icons-material/Edit';
 
 type Props = {
   name: string;
 };
 
 function DAGEditButtons({ name }: Props) {
+  console.log('DAGEditButtons rendering with name:', name); // Debug log
   const appBarContext = React.useContext(AppBarContext);
+  const navigate = useNavigate();
+
   return (
     <Stack direction="row" spacing={1}>
       <Button
+        variant="contained"
+        color="primary"
+        startIcon={<EditIcon />}
+        onClick={() => {
+          console.log('Edit button clicked, navigating to:', `/dags/${name}/edit`);
+          navigate(`/dags/${name}/edit`);
+        }}
+        sx={{
+          backgroundColor: 'primary.main',
+          '&:hover': {
+            backgroundColor: 'primary.dark',
+          },
+          // Debug styles
+          border: '2px solid red',
+          padding: '10px 20px',
+          fontSize: '16px',
+          fontWeight: 'bold',
+          zIndex: 9999,
+        }}
+      >
+        Edit Workflow
+      </Button>
+      <Button
+        variant="outlined"
         onClick={async () => {
           const val = window.prompt('Please input the new DAG name', '');
           if (!val) {
@@ -20,9 +49,8 @@ function DAGEditButtons({ name }: Props) {
             alert('DAG name cannot contain space');
             return;
           }
-          const url = `${getConfig().apiURL}/dags/${name}?remoteNode=${
-            appBarContext.selectedRemoteNode || 'local'
-          }`;
+          const url = `${getConfig().apiURL}/dags/${name}?remoteNode=${appBarContext.selectedRemoteNode || 'local'
+            }`;
           const resp = await fetch(url, {
             method: 'POST',
             headers: {
@@ -44,6 +72,8 @@ function DAGEditButtons({ name }: Props) {
         Rename
       </Button>
       <Button
+        variant="outlined"
+        color="error"
         onClick={async () => {
           if (!confirm('Are you sure to delete the DAG?')) {
             return;
