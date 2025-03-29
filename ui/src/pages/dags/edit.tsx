@@ -6,6 +6,7 @@ import { AppBarContext } from '../../contexts/AppBarContext';
 import { GetDAGResponse } from '../../models/api';
 import DAGEditor from '../../components/atoms/DAGEditor';
 import BorderedBox from '../../components/atoms/BorderedBox';
+import WorkflowBuilder from '../../components/workflow-builder/WorkflowBuilder';
 
 type EditMode = 'code' | 'visual';
 
@@ -74,21 +75,15 @@ function EditWorkflow() {
       );
     }
 
-    return (
-      <Box sx={{ height: '70vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Typography variant="h6" color="text.secondary">
-          Visual Workflow Builder (Coming Soon)
-        </Typography>
-      </Box>
-    );
+    return <WorkflowBuilder />;
   };
 
   if (error) return <div>Failed to load workflow</div>;
   if (!data) return <div>Loading...</div>;
 
   return (
-    <Box sx={{ p: 3, width: '100%', maxWidth: '100%', overflow: 'hidden' }}>
-      <Paper sx={{ p: 2, mb: 2, width: '100%' }}>
+    <Box sx={{ p: 2, width: '100%', maxWidth: '100%', overflow: 'hidden' }}>
+      <Paper sx={{ p: 2, width: '100%' }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
           <Box>
             <Typography variant="h6" sx={{ mb: 1 }}>Workflow Definition</Typography>
