@@ -9,6 +9,7 @@ import ReactFlow, {
   XYPosition,
   useReactFlow,
   ReactFlowProvider,
+  Connection,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import ConfigPanel from './ConfigPanel';
@@ -89,47 +90,62 @@ const WorkflowBuilderContent: React.FC = () => {
   };
 
   const handleNodeConfigChange = (field: string, value: any) => {
-    if (field === 'back') {
-      setSelectedNode(null);
-      return;
-    }
-
     if (!selectedNode) return;
 
+    // Handle nested fields (e.g., 'retryPolicy.limit', 'continueOn.failure')
+    const updateNestedConfig = (config: any, path: string[], value: any): Record<string, any> => {
+      if (path.length === 1) {
+        return { ...config, [path[0]]: value };
+      }
+
+      const [current, ...rest] = path;
+      return {
+        ...config,
+        [current]: updateNestedConfig(config[current] || {}, rest, value)
+      };
+    };
+
     setNodes(nds =>
-      nds.map(node =>
-        node.id === selectedNode.id
-          ? {
-            ...node,
-            data: {
-              ...node.data,
-              type: field === 'type' ? value : node.data.type,
-              label: field === 'type' ? (value === 'webhook' ? 'Webhook' : 'Schedule') : node.data.label,
-              config: {
-                ...(node.data as NodeData).config,
-                type: field === 'type' ? value : (node.data as NodeData).config.type,
-                [field]: value,
-              },
-            },
+      nds.map(node => {
+        if (node.id !== selectedNode.id) return node;
+
+        // Split the field path (e.g., 'retryPolicy.limit' -> ['retryPolicy', 'limit'])
+        const fieldPath = field.split('.');
+
+        // Update the config using the nested update function
+        const newConfig = updateNestedConfig(
+          node.data.config || {},
+          fieldPath,
+          value
+        );
+
+        return {
+          ...node,
+          data: {
+            ...node.data,
+            config: newConfig
           }
-          : node
-      )
+        };
+      })
     );
 
+    // Update selected node state
     setSelectedNode(prev => {
       if (!prev) return null;
+
+      const fieldPath = field.split('.');
+      const newConfig = updateNestedConfig(
+        prev.data.config || {},
+        fieldPath,
+        value
+      );
+
       return {
         ...prev,
         data: {
           ...prev.data,
-          type: field === 'type' ? value : prev.data.type,
-          label: field === 'type' ? (value === 'webhook' ? 'Webhook' : 'Schedule') : prev.data.label,
-          config: {
-            ...prev.data.config,
-            type: field === 'type' ? value : prev.data.config.type,
-            [field]: value,
-          },
-        },
+          config: newConfig
+        }
       };
     });
   };
@@ -197,7 +213,11 @@ const WorkflowBuilderContent: React.FC = () => {
     const { sourceNodeId, sourceHandleId, position } = pendingConnection;
     const newNodeId = `node-${nodes.length + 1}`;
 
-    // Create new node
+    // Get the source node's name for the depends field
+    const sourceNode = nodes.find(node => node.id === sourceNodeId);
+    const sourceNodeName = sourceNode?.data.config?.name || sourceNode?.data.label;
+
+    // Create new node with proper initial config structure
     const newNode = {
       id: newNodeId,
       type,
@@ -205,7 +225,27 @@ const WorkflowBuilderContent: React.FC = () => {
       data: {
         label: type.charAt(0).toUpperCase() + type.slice(1),
         type,
-        config: {}
+        config: {
+          ...(type === 'action' ? {
+            name: '',
+            description: '',
+            output: '',
+            command: '',
+            script: '',
+            retryPolicy: {
+              limit: 2,
+              intervalSec: 5
+            },
+            continueOn: {
+              failure: false,
+              skipped: false,
+              exitCode: [],
+              markSuccess: false
+            }
+          } : {}),
+          // Add depends field with the source node's name
+          depends: sourceNodeName ? [sourceNodeName] : []
+        }
       }
     };
 
@@ -220,9 +260,36 @@ const WorkflowBuilderContent: React.FC = () => {
     setNodes(nds => [...nds, newNode]);
     setEdges(eds => [...eds, newEdge]);
     setPendingConnection(null);
-  }, [nodes.length, pendingConnection, project]);
+  }, [nodes.length, pendingConnection, project, nodes]);
 
   const showInstruction = nodes.length === 1 && edges.length === 0;
+
+  const onConnect = useCallback((params: Connection) => {
+    setEdges(eds => [...eds, { ...params, id: `${params.source}-${params.target}` } as Edge]);
+
+    // Update the target node's depends field
+    setNodes(nds =>
+      nds.map(node => {
+        if (node.id !== params.target) return node;
+
+        const sourceNode = nds.find(n => n.id === params.source);
+        const sourceNodeName = sourceNode?.data.config?.name || sourceNode?.data.label;
+
+        if (!sourceNodeName) return node;
+
+        return {
+          ...node,
+          data: {
+            ...node.data,
+            config: {
+              ...node.data.config,
+              depends: [...(node.data.config?.depends || []), sourceNodeName]
+            }
+          }
+        };
+      })
+    );
+  }, []);
 
   return (
     <Box sx={{
@@ -253,6 +320,7 @@ const WorkflowBuilderContent: React.FC = () => {
           onConnectEnd={onConnectEnd}
           onPaneMouseMove={onPaneMouseMove}
           fitView
+          onConnect={onConnect}
         >
           <NodeSilhouette
             position={silhouettePosition}
@@ -294,6 +362,8 @@ const WorkflowBuilderContent: React.FC = () => {
           workflowConfig={workflowConfig}
           onWorkflowConfigChange={handleWorkflowConfigChange}
           onNodeConfigChange={handleNodeConfigChange}
+          nodes={nodes}
+          edges={edges}
         />
       </Paper>
 

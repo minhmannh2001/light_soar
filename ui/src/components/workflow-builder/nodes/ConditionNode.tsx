@@ -9,12 +9,26 @@ import CustomHandle from './CustomHandle';
 interface ConditionNodeProps {
   data: {
     label: string;
-    condition: string;
+    config: {
+      name: string;
+      nextNodes: {
+        [nodeId: string]: {
+          precondition: {
+            condition: string;
+            expected?: string;
+          };
+        };
+      };
+    };
   };
 }
 
 const ConditionNode: React.FC<ConditionNodeProps> = ({ data }) => {
-  const isConfigured = data.condition !== '';
+  // Check if name is filled and at least one condition is configured
+  const isConfigured = data.config?.name &&
+    Object.values(data.config?.nextNodes || {}).some(
+      node => node.precondition?.condition
+    );
 
   return (
     <Box sx={{ position: 'relative', my: 2 }}>
@@ -53,7 +67,7 @@ const ConditionNode: React.FC<ConditionNodeProps> = ({ data }) => {
             />
           </Box>
           <Typography variant="caption" fontWeight="bold" sx={{ fontSize: '0.75rem' }}>
-            {data.label}
+            {data.config?.name || data.label}
           </Typography>
         </Box>
 

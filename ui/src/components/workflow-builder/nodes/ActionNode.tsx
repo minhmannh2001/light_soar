@@ -9,15 +9,15 @@ import CustomHandle from './CustomHandle';
 interface ActionNodeProps {
   data: {
     label: string;
-    type: string;
     config: {
+      name: string;
       command: string;
     };
   };
 }
 
 const ActionNode: React.FC<ActionNodeProps> = ({ data }) => {
-  const isConfigured = data.config.command !== '';
+  const isConfigured = data.config?.name !== '';
 
   return (
     <Box sx={{ position: 'relative', my: 2 }}>
@@ -56,7 +56,7 @@ const ActionNode: React.FC<ActionNodeProps> = ({ data }) => {
             />
           </Box>
           <Typography variant="caption" fontWeight="bold" sx={{ fontSize: '0.75rem' }}>
-            {data.label}
+            {data.config?.name || data.label}
           </Typography>
         </Box>
 
