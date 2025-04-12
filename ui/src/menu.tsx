@@ -9,6 +9,7 @@ import {
   faChartGantt,
   faMagnifyingGlass,
   faTableList,
+  faFileCode,
 } from '@fortawesome/free-solid-svg-icons';
 import { IconProp } from '@fortawesome/fontawesome-svg-core';
 
@@ -38,8 +39,8 @@ export const mainListItems = (
     <Link to="/dags">
       <ListItem text="DAGs" icon={<Icon icon={faTableList}></Icon>} />
     </Link>
-    <Link to="/search">
-      <ListItem text="Search" icon={<Icon icon={faMagnifyingGlass}></Icon>} />
+    <Link to="/python-files">
+      <ListItem text="Python Files" icon={<Icon icon={faFileCode}></Icon>} />
     </Link>
   </React.Fragment>
 );

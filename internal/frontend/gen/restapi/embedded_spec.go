@@ -274,6 +274,157 @@ func init() {
         }
       }
     },
+    "/python-files": {
+      "get": {
+        "tags": [
+          "python_files"
+        ],
+        "summary": "List Python files",
+        "operationId": "listPythonFiles",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/PythonFile"
+              }
+            }
+          },
+          "default": {
+            "description": "Generic error response.",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "python_files"
+        ],
+        "summary": "Create a new Python file",
+        "operationId": "createPythonFile",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/PythonFile"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created",
+            "schema": {
+              "$ref": "#/definitions/PythonFile"
+            }
+          },
+          "default": {
+            "description": "Generic error response.",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          }
+        }
+      }
+    },
+    "/python-files/{name}": {
+      "get": {
+        "tags": [
+          "python_files"
+        ],
+        "summary": "Get a Python file by name",
+        "operationId": "getPythonFile",
+        "parameters": [
+          {
+            "type": "string",
+            "name": "name",
+            "in": "path",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/PythonFile"
+            }
+          },
+          "default": {
+            "description": "Generic error response.",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "python_files"
+        ],
+        "summary": "Update a Python file",
+        "operationId": "updatePythonFile",
+        "parameters": [
+          {
+            "type": "string",
+            "name": "name",
+            "in": "path",
+            "required": true
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/PythonFile"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/PythonFile"
+            }
+          },
+          "default": {
+            "description": "Generic error response.",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "python_files"
+        ],
+        "summary": "Delete a Python file",
+        "operationId": "deletePythonFile",
+        "parameters": [
+          {
+            "type": "string",
+            "name": "name",
+            "in": "path",
+            "required": true
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "default": {
+            "description": "Generic error response.",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          }
+        }
+      }
+    },
     "/search": {
       "get": {
         "description": "Searches for DAGs based on a query string.",
@@ -1064,6 +1215,24 @@ func init() {
         }
       }
     },
+    "PythonFile": {
+      "description": "Python file object",
+      "type": "object",
+      "required": [
+        "name",
+        "content"
+      ],
+      "properties": {
+        "content": {
+          "description": "Content of the Python file",
+          "type": "string"
+        },
+        "name": {
+          "description": "Name of the Python file",
+          "type": "string"
+        }
+      }
+    },
     "RepeatPolicy": {
       "description": "Configuration for step retry behavior",
       "type": "object",
@@ -1278,6 +1447,10 @@ func init() {
     {
       "description": "System operations",
       "name": "system"
+    },
+    {
+      "description": "Operations about Python files",
+      "name": "python_files"
     }
   ]
 }`))
@@ -1538,6 +1711,157 @@ func init() {
         }
       }
     },
+    "/python-files": {
+      "get": {
+        "tags": [
+          "python_files"
+        ],
+        "summary": "List Python files",
+        "operationId": "listPythonFiles",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/PythonFile"
+              }
+            }
+          },
+          "default": {
+            "description": "Generic error response.",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "python_files"
+        ],
+        "summary": "Create a new Python file",
+        "operationId": "createPythonFile",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/PythonFile"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created",
+            "schema": {
+              "$ref": "#/definitions/PythonFile"
+            }
+          },
+          "default": {
+            "description": "Generic error response.",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          }
+        }
+      }
+    },
+    "/python-files/{name}": {
+      "get": {
+        "tags": [
+          "python_files"
+        ],
+        "summary": "Get a Python file by name",
+        "operationId": "getPythonFile",
+        "parameters": [
+          {
+            "type": "string",
+            "name": "name",
+            "in": "path",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/PythonFile"
+            }
+          },
+          "default": {
+            "description": "Generic error response.",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "python_files"
+        ],
+        "summary": "Update a Python file",
+        "operationId": "updatePythonFile",
+        "parameters": [
+          {
+            "type": "string",
+            "name": "name",
+            "in": "path",
+            "required": true
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/PythonFile"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/PythonFile"
+            }
+          },
+          "default": {
+            "description": "Generic error response.",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "python_files"
+        ],
+        "summary": "Delete a Python file",
+        "operationId": "deletePythonFile",
+        "parameters": [
+          {
+            "type": "string",
+            "name": "name",
+            "in": "path",
+            "required": true
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "default": {
+            "description": "Generic error response.",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          }
+        }
+      }
+    },
     "/search": {
       "get": {
         "description": "Searches for DAGs based on a query string.",
@@ -2328,6 +2652,24 @@ func init() {
         }
       }
     },
+    "PythonFile": {
+      "description": "Python file object",
+      "type": "object",
+      "required": [
+        "name",
+        "content"
+      ],
+      "properties": {
+        "content": {
+          "description": "Content of the Python file",
+          "type": "string"
+        },
+        "name": {
+          "description": "Name of the Python file",
+          "type": "string"
+        }
+      }
+    },
     "RepeatPolicy": {
       "description": "Configuration for step retry behavior",
       "type": "object",
@@ -2542,6 +2884,10 @@ func init() {
     {
       "description": "System operations",
       "name": "system"
+    },
+    {
+      "description": "Operations about Python files",
+      "name": "python_files"
     }
   ]
 }`))

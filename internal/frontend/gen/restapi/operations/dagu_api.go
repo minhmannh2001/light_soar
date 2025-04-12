@@ -20,6 +20,7 @@ import (
 	"github.com/go-openapi/swag"
 
 	"github.com/dagu-org/dagu/internal/frontend/gen/restapi/operations/dags"
+	"github.com/dagu-org/dagu/internal/frontend/gen/restapi/operations/python_files"
 	"github.com/dagu-org/dagu/internal/frontend/gen/restapi/operations/system"
 )
 
@@ -48,8 +49,14 @@ func NewDaguAPI(spec *loads.Document) *DaguAPI {
 		DagsCreateDAGHandler: dags.CreateDAGHandlerFunc(func(params dags.CreateDAGParams) middleware.Responder {
 			return middleware.NotImplemented("operation dags.CreateDAG has not yet been implemented")
 		}),
+		PythonFilesCreatePythonFileHandler: python_files.CreatePythonFileHandlerFunc(func(params python_files.CreatePythonFileParams) middleware.Responder {
+			return middleware.NotImplemented("operation python_files.CreatePythonFile has not yet been implemented")
+		}),
 		DagsDeleteDAGHandler: dags.DeleteDAGHandlerFunc(func(params dags.DeleteDAGParams) middleware.Responder {
 			return middleware.NotImplemented("operation dags.DeleteDAG has not yet been implemented")
+		}),
+		PythonFilesDeletePythonFileHandler: python_files.DeletePythonFileHandlerFunc(func(params python_files.DeletePythonFileParams) middleware.Responder {
+			return middleware.NotImplemented("operation python_files.DeletePythonFile has not yet been implemented")
 		}),
 		DagsGetDAGDetailsHandler: dags.GetDAGDetailsHandlerFunc(func(params dags.GetDAGDetailsParams) middleware.Responder {
 			return middleware.NotImplemented("operation dags.GetDAGDetails has not yet been implemented")
@@ -57,8 +64,14 @@ func NewDaguAPI(spec *loads.Document) *DaguAPI {
 		SystemGetHealthHandler: system.GetHealthHandlerFunc(func(params system.GetHealthParams) middleware.Responder {
 			return middleware.NotImplemented("operation system.GetHealth has not yet been implemented")
 		}),
+		PythonFilesGetPythonFileHandler: python_files.GetPythonFileHandlerFunc(func(params python_files.GetPythonFileParams) middleware.Responder {
+			return middleware.NotImplemented("operation python_files.GetPythonFile has not yet been implemented")
+		}),
 		DagsListDAGsHandler: dags.ListDAGsHandlerFunc(func(params dags.ListDAGsParams) middleware.Responder {
 			return middleware.NotImplemented("operation dags.ListDAGs has not yet been implemented")
+		}),
+		PythonFilesListPythonFilesHandler: python_files.ListPythonFilesHandlerFunc(func(params python_files.ListPythonFilesParams) middleware.Responder {
+			return middleware.NotImplemented("operation python_files.ListPythonFiles has not yet been implemented")
 		}),
 		DagsListTagsHandler: dags.ListTagsHandlerFunc(func(params dags.ListTagsParams) middleware.Responder {
 			return middleware.NotImplemented("operation dags.ListTags has not yet been implemented")
@@ -68,6 +81,9 @@ func NewDaguAPI(spec *loads.Document) *DaguAPI {
 		}),
 		DagsSearchDAGsHandler: dags.SearchDAGsHandlerFunc(func(params dags.SearchDAGsParams) middleware.Responder {
 			return middleware.NotImplemented("operation dags.SearchDAGs has not yet been implemented")
+		}),
+		PythonFilesUpdatePythonFileHandler: python_files.UpdatePythonFileHandlerFunc(func(params python_files.UpdatePythonFileParams) middleware.Responder {
+			return middleware.NotImplemented("operation python_files.UpdatePythonFile has not yet been implemented")
 		}),
 	}
 }
@@ -108,20 +124,30 @@ type DaguAPI struct {
 
 	// DagsCreateDAGHandler sets the operation handler for the create d a g operation
 	DagsCreateDAGHandler dags.CreateDAGHandler
+	// PythonFilesCreatePythonFileHandler sets the operation handler for the create python file operation
+	PythonFilesCreatePythonFileHandler python_files.CreatePythonFileHandler
 	// DagsDeleteDAGHandler sets the operation handler for the delete d a g operation
 	DagsDeleteDAGHandler dags.DeleteDAGHandler
+	// PythonFilesDeletePythonFileHandler sets the operation handler for the delete python file operation
+	PythonFilesDeletePythonFileHandler python_files.DeletePythonFileHandler
 	// DagsGetDAGDetailsHandler sets the operation handler for the get d a g details operation
 	DagsGetDAGDetailsHandler dags.GetDAGDetailsHandler
 	// SystemGetHealthHandler sets the operation handler for the get health operation
 	SystemGetHealthHandler system.GetHealthHandler
+	// PythonFilesGetPythonFileHandler sets the operation handler for the get python file operation
+	PythonFilesGetPythonFileHandler python_files.GetPythonFileHandler
 	// DagsListDAGsHandler sets the operation handler for the list d a gs operation
 	DagsListDAGsHandler dags.ListDAGsHandler
+	// PythonFilesListPythonFilesHandler sets the operation handler for the list python files operation
+	PythonFilesListPythonFilesHandler python_files.ListPythonFilesHandler
 	// DagsListTagsHandler sets the operation handler for the list tags operation
 	DagsListTagsHandler dags.ListTagsHandler
 	// DagsPostDAGActionHandler sets the operation handler for the post d a g action operation
 	DagsPostDAGActionHandler dags.PostDAGActionHandler
 	// DagsSearchDAGsHandler sets the operation handler for the search d a gs operation
 	DagsSearchDAGsHandler dags.SearchDAGsHandler
+	// PythonFilesUpdatePythonFileHandler sets the operation handler for the update python file operation
+	PythonFilesUpdatePythonFileHandler python_files.UpdatePythonFileHandler
 
 	// ServeError is called when an error is received, there is a default handler
 	// but you can set your own with this
@@ -202,8 +228,14 @@ func (o *DaguAPI) Validate() error {
 	if o.DagsCreateDAGHandler == nil {
 		unregistered = append(unregistered, "dags.CreateDAGHandler")
 	}
+	if o.PythonFilesCreatePythonFileHandler == nil {
+		unregistered = append(unregistered, "python_files.CreatePythonFileHandler")
+	}
 	if o.DagsDeleteDAGHandler == nil {
 		unregistered = append(unregistered, "dags.DeleteDAGHandler")
+	}
+	if o.PythonFilesDeletePythonFileHandler == nil {
+		unregistered = append(unregistered, "python_files.DeletePythonFileHandler")
 	}
 	if o.DagsGetDAGDetailsHandler == nil {
 		unregistered = append(unregistered, "dags.GetDAGDetailsHandler")
@@ -211,8 +243,14 @@ func (o *DaguAPI) Validate() error {
 	if o.SystemGetHealthHandler == nil {
 		unregistered = append(unregistered, "system.GetHealthHandler")
 	}
+	if o.PythonFilesGetPythonFileHandler == nil {
+		unregistered = append(unregistered, "python_files.GetPythonFileHandler")
+	}
 	if o.DagsListDAGsHandler == nil {
 		unregistered = append(unregistered, "dags.ListDAGsHandler")
+	}
+	if o.PythonFilesListPythonFilesHandler == nil {
+		unregistered = append(unregistered, "python_files.ListPythonFilesHandler")
 	}
 	if o.DagsListTagsHandler == nil {
 		unregistered = append(unregistered, "dags.ListTagsHandler")
@@ -222,6 +260,9 @@ func (o *DaguAPI) Validate() error {
 	}
 	if o.DagsSearchDAGsHandler == nil {
 		unregistered = append(unregistered, "dags.SearchDAGsHandler")
+	}
+	if o.PythonFilesUpdatePythonFileHandler == nil {
+		unregistered = append(unregistered, "python_files.UpdatePythonFileHandler")
 	}
 
 	if len(unregistered) > 0 {
@@ -315,10 +356,18 @@ func (o *DaguAPI) initHandlerCache() {
 		o.handlers["POST"] = make(map[string]http.Handler)
 	}
 	o.handlers["POST"]["/dags"] = dags.NewCreateDAG(o.context, o.DagsCreateDAGHandler)
+	if o.handlers["POST"] == nil {
+		o.handlers["POST"] = make(map[string]http.Handler)
+	}
+	o.handlers["POST"]["/python-files"] = python_files.NewCreatePythonFile(o.context, o.PythonFilesCreatePythonFileHandler)
 	if o.handlers["DELETE"] == nil {
 		o.handlers["DELETE"] = make(map[string]http.Handler)
 	}
 	o.handlers["DELETE"]["/dags/{dagId}"] = dags.NewDeleteDAG(o.context, o.DagsDeleteDAGHandler)
+	if o.handlers["DELETE"] == nil {
+		o.handlers["DELETE"] = make(map[string]http.Handler)
+	}
+	o.handlers["DELETE"]["/python-files/{name}"] = python_files.NewDeletePythonFile(o.context, o.PythonFilesDeletePythonFileHandler)
 	if o.handlers["GET"] == nil {
 		o.handlers["GET"] = make(map[string]http.Handler)
 	}
@@ -330,7 +379,15 @@ func (o *DaguAPI) initHandlerCache() {
 	if o.handlers["GET"] == nil {
 		o.handlers["GET"] = make(map[string]http.Handler)
 	}
+	o.handlers["GET"]["/python-files/{name}"] = python_files.NewGetPythonFile(o.context, o.PythonFilesGetPythonFileHandler)
+	if o.handlers["GET"] == nil {
+		o.handlers["GET"] = make(map[string]http.Handler)
+	}
 	o.handlers["GET"]["/dags"] = dags.NewListDAGs(o.context, o.DagsListDAGsHandler)
+	if o.handlers["GET"] == nil {
+		o.handlers["GET"] = make(map[string]http.Handler)
+	}
+	o.handlers["GET"]["/python-files"] = python_files.NewListPythonFiles(o.context, o.PythonFilesListPythonFilesHandler)
 	if o.handlers["GET"] == nil {
 		o.handlers["GET"] = make(map[string]http.Handler)
 	}
@@ -343,6 +400,10 @@ func (o *DaguAPI) initHandlerCache() {
 		o.handlers["GET"] = make(map[string]http.Handler)
 	}
 	o.handlers["GET"]["/search"] = dags.NewSearchDAGs(o.context, o.DagsSearchDAGsHandler)
+	if o.handlers["PUT"] == nil {
+		o.handlers["PUT"] = make(map[string]http.Handler)
+	}
+	o.handlers["PUT"]["/python-files/{name}"] = python_files.NewUpdatePythonFile(o.context, o.PythonFilesUpdatePythonFileHandler)
 }
 
 // Serve creates a http handler to serve the API over HTTP

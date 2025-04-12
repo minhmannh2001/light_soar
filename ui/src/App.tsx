@@ -12,6 +12,7 @@ import Search from './pages/search';
 import { UserPreferencesProvider } from './contexts/UserPreference';
 import { Config, ConfigContext } from './contexts/ConfigContext';
 import moment from 'moment-timezone';
+import PythonFileEditor from './components/PythonFileEditor';
 
 type Props = {
   config: Config;
@@ -60,6 +61,7 @@ function App({ config }: Props) {
                   <Route path="/dags/:name/" element={<DAGDetails />} />
                   <Route path="/dags/:name/edit" element={<EditWorkflow />} />
                   <Route path="/search/" element={<Search />} />
+                  <Route path="/python-files" element={<PythonFileEditor />} />
                 </Routes>
               </Layout>
             </BrowserRouter>

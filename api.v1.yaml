@@ -28,6 +28,8 @@ tags:
     description: "Operations about DAGs"
   - name: "system"
     description: "System operations"
+  - name: "python_files"
+    description: "Operations about Python files"
 
 paths:
   /health:
@@ -231,6 +233,106 @@ paths:
           description: "A successful response."
           schema:
             $ref: "#/definitions/ListTagResponse"
+        default:
+          description: "Generic error response."
+          schema:
+            $ref: "#/definitions/Error"
+
+  /python-files:
+    get:
+      tags:
+        - "python_files"
+      summary: "List Python files"
+      operationId: "listPythonFiles"
+      responses:
+        "200":
+          description: "A successful response."
+          schema:
+            type: array
+            items:
+              $ref: "#/definitions/PythonFile"
+        default:
+          description: "Generic error response."
+          schema:
+            $ref: "#/definitions/Error"
+    post:
+      tags:
+        - "python_files"
+      summary: "Create a new Python file"
+      operationId: "createPythonFile"
+      parameters:
+        - in: "body"
+          name: "body"
+          required: true
+          schema:
+            $ref: "#/definitions/PythonFile"
+      responses:
+        "201":
+          description: "Created"
+          schema:
+            $ref: "#/definitions/PythonFile"
+        default:
+          description: "Generic error response."
+          schema:
+            $ref: "#/definitions/Error"
+
+  /python-files/{name}:
+    get:
+      tags:
+        - "python_files"
+      summary: "Get a Python file by name"
+      operationId: "getPythonFile"
+      parameters:
+        - name: "name"
+          in: "path"
+          required: true
+          type: "string"
+      responses:
+        "200":
+          description: "A successful response."
+          schema:
+            $ref: "#/definitions/PythonFile"
+        default:
+          description: "Generic error response."
+          schema:
+            $ref: "#/definitions/Error"
+    put:
+      tags:
+        - "python_files"
+      summary: "Update a Python file"
+      operationId: "updatePythonFile"
+      parameters:
+        - name: "name"
+          in: "path"
+          required: true
+          type: "string"
+        - in: "body"
+          name: "body"
+          required: true
+          schema:
+            $ref: "#/definitions/PythonFile"
+      responses:
+        "200":
+          description: "A successful response."
+          schema:
+            $ref: "#/definitions/PythonFile"
+        default:
+          description: "Generic error response."
+          schema:
+            $ref: "#/definitions/Error"
+    delete:
+      tags:
+        - "python_files"
+      summary: "Delete a Python file"
+      operationId: "deletePythonFile"
+      parameters:
+        - name: "name"
+          in: "path"
+          required: true
+          type: "string"
+      responses:
+        "204":
+          description: "Deleted"
         default:
           description: "Generic error response."
           schema:
@@ -948,3 +1050,17 @@ definitions:
     required:
       - Tags
       - Errors
+
+  PythonFile:
+    type: object
+    description: "Python file object"
+    properties:
+      name:
+        type: string
+        description: "Name of the Python file"
+      content:
+        type: string
+        description: "Content of the Python file"
+    required:
+      - name
+      - content

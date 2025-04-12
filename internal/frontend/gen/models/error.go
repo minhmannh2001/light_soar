@@ -22,7 +22,7 @@ type Error struct {
 
 	// Error code indicating the type of error.
 	// Required: true
-	// Enum: [validation_error not_found internal_error unauthorized bad_gateway]
+	// Enum: ["validation_error","not_found","internal_error","unauthorized","bad_gateway"]
 	Code *string `json:"code"`
 
 	// Additional error details.

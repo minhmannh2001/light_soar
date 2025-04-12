@@ -22,7 +22,7 @@ type HealthResponse struct {
 
 	// Overall health status of the server
 	// Required: true
-	// Enum: [healthy unhealthy]
+	// Enum: ["healthy","unhealthy"]
 	Status *string `json:"status"`
 
 	// Current server time

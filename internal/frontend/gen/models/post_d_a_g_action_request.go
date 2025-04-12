@@ -22,7 +22,7 @@ type PostDAGActionRequest struct {
 
 	// Action to be performed on the DAG.
 	// Required: true
-	// Enum: [start suspend stop retry mark-success mark-failed save rename]
+	// Enum: ["start","suspend","stop","retry","mark-success","mark-failed","save","rename"]
 	Action *string `json:"action"`
 
 	// Additional parameters for the action.

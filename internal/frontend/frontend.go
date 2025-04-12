@@ -16,6 +16,9 @@ func New(cfg *config.Config, cli client.Client) *server.Server {
 	systemAPIHandler := handlers.NewSystem()
 	apiHandlers = append(apiHandlers, systemAPIHandler)
 
+	pythonFilesHandler := handlers.NewPythonFiles()
+	apiHandlers = append(apiHandlers, pythonFilesHandler)
+
 	var remoteNodes []string
 	for _, n := range cfg.RemoteNodes {
 		remoteNodes = append(remoteNodes, n.Name)
@@ -30,6 +33,7 @@ func New(cfg *config.Config, cli client.Client) *server.Server {
 		NavbarColor:           cfg.UI.NavbarColor,
 		NavbarTitle:           cfg.UI.NavbarTitle,
 		MaxDashboardPageLimit: cfg.UI.MaxDashboardPageLimit,
+		BasePath:              cfg.BasePath,
 		APIBaseURL:            cfg.APIBaseURL,
 		TimeZone:              cfg.TZ,
 		RemoteNodes:           remoteNodes,
