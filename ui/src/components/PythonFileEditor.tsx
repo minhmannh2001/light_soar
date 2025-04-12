@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Button, Input, Modal, Table, Typography, message } from 'antd';
 import {
   DeleteOutlined,
@@ -11,6 +11,10 @@ import fetchJson from '../lib/fetchJson';
 import { Box, Grid } from '@mui/material';
 import Title from './atoms/Title';
 import { AppBarContext } from '../contexts/AppBarContext';
+import MonacoEditor, { loader } from '@monaco-editor/react';
+import * as monaco from 'monaco-editor';
+
+loader.config({ monaco });
 
 interface PythonFile {
   name: string;
@@ -25,6 +29,7 @@ const PythonFileEditor: React.FC = () => {
   const [viewMode, setViewMode] = useState(false);
   const config = useConfig();
   const appBarContext = React.useContext(AppBarContext);
+  const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
 
   useEffect(() => {
     fetchFiles();
@@ -164,12 +169,12 @@ const PythonFileEditor: React.FC = () => {
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginRight: '32px', // Add margin to create space between buttons
+        marginRight: '32px',
       }}
     >
       <span>
         {viewMode
-          ? `View File: ${selectedFile?.name}`
+          ? `View File: ${selectedFile?.name}` // Removed .py extension
           : selectedFile
           ? 'Edit File'
           : 'Create New File'}
@@ -201,6 +206,125 @@ const PythonFileEditor: React.FC = () => {
         </Button>
       ),
     ].filter(Boolean);
+  };
+
+  const handleEditorDidMount = (
+    editor: monaco.editor.IStandaloneCodeEditor
+  ) => {
+    editorRef.current = editor;
+  };
+
+  const handleEditorChange = (value: string | undefined) => {
+    if (selectedFile && value !== undefined) {
+      setSelectedFile({ ...selectedFile, content: value });
+    }
+  };
+
+  const renderModalContent = () => {
+    if (!selectedFile) {
+      return (
+        <Box sx={{ p: 3 }}>
+          <Input
+            placeholder="Enter file name (without .py extension)"
+            value={newFileName}
+            onChange={(e) => setNewFileName(e.target.value)}
+            size="large"
+            autoFocus
+          />
+        </Box>
+      );
+    }
+
+    return (
+      <Box>
+        <Box
+          sx={{
+            borderBottom: '1px solid #f0f0f0',
+            backgroundColor: '#fafafa',
+            px: 3,
+            py: 2,
+          }}
+        >
+          {!viewMode ? (
+            <Input
+              value={selectedFile.name.replace(/\.py$/, '')}
+              onChange={(e) =>
+                setSelectedFile({
+                  ...selectedFile,
+                  name: e.target.value,
+                })
+              }
+              size="large"
+              style={{ maxWidth: '50%' }}
+              suffix=".py"
+            />
+          ) : (
+            <Typography.Text strong style={{ fontSize: '16px' }}>
+              {selectedFile.name}
+            </Typography.Text>
+          )}
+        </Box>
+
+        <Box sx={{ mt: 0 }}>
+          {viewMode ? (
+            <Box
+              sx={{
+                p: 3,
+                backgroundColor: '#fafafa',
+                borderRadius: 1,
+                mx: 3,
+                my: 2,
+                border: '1px solid #f0f0f0',
+                maxHeight: '60vh',
+                overflow: 'auto',
+              }}
+            >
+              <pre
+                style={{
+                  margin: 0,
+                  fontFamily: '"Fira Code", "Consolas", monospace',
+                  fontSize: '14px',
+                  lineHeight: 1.5,
+                  whiteSpace: 'pre-wrap',
+                  wordWrap: 'break-word',
+                }}
+              >
+                {selectedFile.content}
+              </pre>
+            </Box>
+          ) : (
+            <Box sx={{ mx: 3, my: 2 }}>
+              <MonacoEditor
+                height="60vh"
+                language="python"
+                value={selectedFile.content}
+                onChange={handleEditorChange}
+                onMount={handleEditorDidMount}
+                options={{
+                  minimap: { enabled: false },
+                  scrollBeyondLastLine: false,
+                  fontSize: 14,
+                  fontFamily: '"Fira Code", "Consolas", monospace',
+                  automaticLayout: true,
+                  formatOnPaste: true,
+                  formatOnType: true,
+                  scrollbar: {
+                    vertical: 'visible',
+                    horizontal: 'visible',
+                  },
+                  lineNumbers: 'on',
+                  renderWhitespace: 'selection',
+                  tabSize: 4,
+                  wordWrap: 'on',
+                  padding: { top: 10, bottom: 10 },
+                  theme: 'vs',
+                }}
+              />
+            </Box>
+          )}
+        </Box>
+      </Box>
+    );
   };
 
   return (
@@ -237,59 +361,19 @@ const PythonFileEditor: React.FC = () => {
         title={renderModalTitle()}
         open={isModalVisible}
         onCancel={() => setIsModalVisible(false)}
-        width={800}
+        width={1000}
         footer={renderModalFooter()}
+        bodyStyle={{ padding: 0 }}
+        style={{
+          top: 90, // Increased from 20 to 60 to move modal lower
+          zIndex: 1000,
+        }}
+        maskStyle={{
+          backgroundColor: 'rgba(0, 0, 0, 0.45)',
+          zIndex: 999,
+        }}
       >
-        {selectedFile ? (
-          <div>
-            {!viewMode && (
-              <Input
-                value={selectedFile.name}
-                onChange={(e) =>
-                  setSelectedFile({ ...selectedFile, name: e.target.value })
-                }
-                style={{ marginBottom: 16 }}
-              />
-            )}
-            {viewMode ? (
-              <pre
-                style={{
-                  width: '100%',
-                  minHeight: 400,
-                  fontFamily: 'monospace',
-                  whiteSpace: 'pre-wrap',
-                  wordWrap: 'break-word',
-                  backgroundColor: '#f5f5f5',
-                  padding: '12px',
-                  borderRadius: '4px',
-                }}
-              >
-                {selectedFile.content}
-              </pre>
-            ) : (
-              <textarea
-                value={selectedFile.content}
-                onChange={(e) =>
-                  setSelectedFile({ ...selectedFile, content: e.target.value })
-                }
-                style={{
-                  width: '100%',
-                  height: 400,
-                  fontFamily: 'monospace',
-                  padding: '12px',
-                  borderRadius: '4px',
-                  border: '1px solid #d9d9d9',
-                }}
-              />
-            )}
-          </div>
-        ) : (
-          <Input
-            placeholder="Enter file name (without .py extension)"
-            value={newFileName}
-            onChange={(e) => setNewFileName(e.target.value)}
-          />
-        )}
+        {renderModalContent()}
       </Modal>
     </Box>
   );

@@ -28,7 +28,7 @@ module.exports = {
   },
   plugins: [
     new MonacoWebpackPlugin({
-      languages: ['yaml'],
+      languages: ['yaml', 'python'],
       features: ['find'],
       customLanguages: [
         {
