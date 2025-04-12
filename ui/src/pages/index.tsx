@@ -53,45 +53,49 @@ function Dashboard() {
   }, [appBarContext]);
 
   return (
-    <Grid container spacing={3} sx={{ mx: 2, width: '100%' }}>
-      {(
-        [
-          [SchedulerStatus.Success, 'Successful'],
-          [SchedulerStatus.Error, 'Failed'],
-          [SchedulerStatus.Running, 'Running'],
-          [SchedulerStatus.Cancel, 'Canceled'],
-        ] as Array<[SchedulerStatus, string]>
-      ).map(([status, label]) => (
-        <Grid item xs={12} md={4} lg={3} key={label}>
-          <Box
-            sx={{
-              px: 2,
-              display: 'flex',
-              flexDirection: 'column',
-              height: 240,
-            }}
-          >
-            <DashboardMetric
-              title={label}
-              color={statusColorMapping[status].backgroundColor}
-              value={metrics[status]}
-            />
-          </Box>
-        </Grid>
-      ))}
-
-      <Grid item xs={12}>
-        <Box
-          sx={{
-            p: 2,
-            height: '100%',
-          }}
-        >
-          <Title>{`Timeline in ${config.tz}`}</Title>
-          <DashboardTimechart data={data?.DAGs || []} />
-        </Box>
+    <Box sx={{ mx: 2, width: '100%' }}>
+      {/* Metrics Section */}
+      <Grid container spacing={3} sx={{ mb: 4 }}>
+        {(
+          [
+            [SchedulerStatus.Success, 'Successful'],
+            [SchedulerStatus.Error, 'Failed'],
+            [SchedulerStatus.Running, 'Running'],
+            [SchedulerStatus.Cancel, 'Canceled'],
+          ] as Array<[SchedulerStatus, string]>
+        ).map(([status, label]) => (
+          <Grid item xs={12} sm={6} md={3} key={label}>
+            <Box
+              sx={{
+                px: 2,
+                display: 'flex',
+                flexDirection: 'column',
+                height: 180,
+              }}
+            >
+              <DashboardMetric
+                title={label}
+                color={statusColorMapping[status].backgroundColor}
+                value={metrics[status]}
+              />
+            </Box>
+          </Grid>
+        ))}
       </Grid>
-    </Grid>
+
+      {/* Timeline Section */}
+      <Box
+        sx={{
+          backgroundColor: 'white',
+          borderRadius: 1,
+          p: 2,
+          boxShadow: 1,
+        }}
+      >
+        <Title>{`Timeline in ${config.tz}`}</Title>
+        <DashboardTimechart data={data?.DAGs || []} />
+      </Box>
+    </Box>
   );
 }
 export default Dashboard;
