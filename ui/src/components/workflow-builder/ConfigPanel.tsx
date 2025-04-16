@@ -24,11 +24,11 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  IconButton,
 } from '@mui/material';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faArrowLeft, faCopy } from '@fortawesome/free-solid-svg-icons';
 import DeleteIcon from '@mui/icons-material/Delete';
+import * as yaml from 'js-yaml';
 
 interface Parameter {
   name: string;
@@ -38,14 +38,12 @@ interface Parameter {
 interface WorkflowConfig {
   name: string;
   description: string;
-  timeoutSec: number;
-  delaySec: number;
-  histRetentionDays: number;
   parameters: Parameter[];
   mailOn: {
     success: boolean;
     failure: boolean;
   };
+  isEditMode?: boolean; // Add this to track edit mode
 }
 
 interface TriggerConfig {
@@ -102,11 +100,13 @@ interface ConfigPanelProps {
     type: string;
     data: any;
   } | null;
-  workflowConfig: any;
+  workflowConfig: WorkflowConfig;
   onWorkflowConfigChange: (field: string, value: any) => void;
   onNodeConfigChange: (field: string, value: any) => void;
   nodes: Array<any>;
   edges: Array<any>;
+  yamlContent?: string; // Add this to receive YAML content
+  isEditMode?: boolean; // Add this to receive edit mode status
 }
 
 interface ActionConfigPanelProps {
@@ -131,6 +131,52 @@ const isValidParamValue = (value: string): boolean => {
   );
 };
 
+// Add a function to parse YAML parameters
+const parseYamlParams = (
+  yamlParams: Array<Record<string, any>>
+): Parameter[] => {
+  if (!yamlParams) return [];
+
+  return yamlParams.map((param) => {
+    const [name, value] = Object.entries(param)[0];
+    let defaultValue = String(value);
+
+    // If value is already a string with backticks, keep it as is
+    if (!defaultValue.startsWith('`')) {
+      // For numbers, keep as is
+      if (typeof value === 'number') {
+        defaultValue = String(value);
+      } else {
+        // For strings, add quotes
+        defaultValue = `"${value}"`;
+      }
+    }
+
+    return {
+      name,
+      defaultValue,
+    };
+  });
+};
+
+// Add a YAML parsing utility
+const parseYamlConfig = (yamlContent: string): Partial<WorkflowConfig> => {
+  try {
+    const config = yaml.load(yamlContent) as any;
+    return {
+      description: config.description || '',
+      parameters: parseYamlParams(config.params || []),
+      mailOn: {
+        success: config.mailOn?.success || false,
+        failure: config.mailOn?.failure || false,
+      },
+    };
+  } catch (e) {
+    console.error('Failed to parse YAML:', e);
+    return {};
+  }
+};
+
 const ConfigPanel: React.FC<ConfigPanelProps> = ({
   selectedNode,
   workflowConfig,
@@ -138,7 +184,27 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({
   onNodeConfigChange,
   nodes,
   edges,
+  yamlContent,
+  isEditMode,
 }) => {
+  // Add effect to load YAML content when switching to visual editor
+  React.useEffect(() => {
+    if (yamlContent) {
+      const config = parseYamlConfig(yamlContent);
+
+      // Update each field individually to maintain other existing values
+      if (config.description !== undefined) {
+        onWorkflowConfigChange('description', config.description);
+      }
+      if (config.parameters) {
+        onWorkflowConfigChange('parameters', config.parameters);
+      }
+      if (config.mailOn) {
+        onWorkflowConfigChange('mailOn', config.mailOn);
+      }
+    }
+  }, [yamlContent]);
+
   if (!selectedNode) {
     return (
       <Box sx={{ p: 2 }}>
@@ -160,6 +226,7 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({
               ? 'Name cannot contain spaces'
               : ''
           }
+          disabled={isEditMode} // Disable name field in edit mode
           sx={{ mb: 2 }}
         />
 

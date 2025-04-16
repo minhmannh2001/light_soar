@@ -1,6 +1,13 @@
 import React from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Box, Paper, Button, Typography, ToggleButtonGroup, ToggleButton } from '@mui/material';
+import {
+  Box,
+  Paper,
+  Button,
+  Typography,
+  ToggleButtonGroup,
+  ToggleButton,
+} from '@mui/material';
 import useSWR from 'swr';
 import { AppBarContext } from '../../contexts/AppBarContext';
 import { GetDAGResponse } from '../../models/api';
@@ -19,7 +26,9 @@ function EditWorkflow() {
 
   // Fetch workflow content using the same endpoint as DAGDetails
   const { data, error } = useSWR<GetDAGResponse>(
-    `/dags/${name}?tab=spec&remoteNode=${appBarContext.selectedRemoteNode || 'local'}`
+    `/dags/${name}?tab=spec&remoteNode=${
+      appBarContext.selectedRemoteNode || 'local'
+    }`
   );
 
   React.useEffect(() => {
@@ -31,7 +40,9 @@ function EditWorkflow() {
 
   const handleSave = async () => {
     try {
-      const url = `${getConfig().apiURL}/dags/${name}?remoteNode=${appBarContext.selectedRemoteNode || 'local'}`;
+      const url = `${getConfig().apiURL}/dags/${name}?remoteNode=${
+        appBarContext.selectedRemoteNode || 'local'
+      }`;
       const response = await fetch(url, {
         method: 'POST',
         headers: {
@@ -58,11 +69,15 @@ function EditWorkflow() {
 
   const handleModeChange = (
     _event: React.MouseEvent<HTMLElement>,
-    newMode: EditMode | null,
+    newMode: EditMode | null
   ) => {
     if (newMode !== null) {
       setEditMode(newMode);
     }
+  };
+
+  const handleSwitchToVisual = () => {
+    setEditMode('visual');
   };
 
   const renderEditor = () => {
@@ -75,7 +90,9 @@ function EditWorkflow() {
       );
     }
 
-    return <WorkflowBuilder />;
+    return (
+      <WorkflowBuilder yamlContent={content} dagName={name} isEditMode={true} />
+    );
   };
 
   if (error) return <div>Failed to load workflow</div>;
@@ -84,9 +101,18 @@ function EditWorkflow() {
   return (
     <Box sx={{ p: 2, width: '100%', maxWidth: '100%', overflow: 'hidden' }}>
       <Paper sx={{ p: 2, width: '100%' }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+        <Box
+          sx={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            mb: 2,
+          }}
+        >
           <Box>
-            <Typography variant="h6" sx={{ mb: 1 }}>Workflow Definition</Typography>
+            <Typography variant="h6" sx={{ mb: 1 }}>
+              Workflow Definition
+            </Typography>
             <Typography variant="body1" color="text.secondary">
               {name}
             </Typography>
@@ -139,4 +165,4 @@ function EditWorkflow() {
   );
 }
 
-export default EditWorkflow; 
+export default EditWorkflow;

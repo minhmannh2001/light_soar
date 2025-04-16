@@ -16,6 +16,7 @@ import ConfigPanel from './ConfigPanel';
 import { TriggerNode, ActionNode, ConditionNode } from './nodes';
 import NodeSilhouette from './NodeSilhouette';
 import NodeSelectorModal from './NodeSelectorModal';
+import * as yaml from 'js-yaml';
 
 interface NodeData {
   label: string;
@@ -45,7 +46,17 @@ const initialNodes: Node[] = [
   },
 ];
 
-const WorkflowBuilderContent: React.FC = () => {
+interface WorkflowBuilderProps {
+  yamlContent?: string;
+  dagName?: string;
+  isEditMode?: boolean;
+}
+
+const WorkflowBuilderContent: React.FC<WorkflowBuilderProps> = ({
+  yamlContent,
+  dagName,
+  isEditMode,
+}) => {
   const { project } = useReactFlow();
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
@@ -55,7 +66,7 @@ const WorkflowBuilderContent: React.FC = () => {
     data: NodeData;
   } | null>(null);
   const [workflowConfig, setWorkflowConfig] = useState({
-    name: '',
+    name: dagName || '', // Initialize with dagName if provided
     description: '',
     timeoutSec: 3600,
     delaySec: 0,
@@ -67,6 +78,33 @@ const WorkflowBuilderContent: React.FC = () => {
     },
     schedule: '',
   });
+
+  // Add effect to load YAML content when switching to visual editor
+  React.useEffect(() => {
+    if (yamlContent) {
+      const config = parseYamlConfig(yamlContent);
+
+      // Update each field individually to maintain other existing values
+      if (config.description !== undefined) {
+        setWorkflowConfig((prev) => ({
+          ...prev,
+          description: config.description,
+        }));
+      }
+      if (config.parameters) {
+        setWorkflowConfig((prev) => ({
+          ...prev,
+          parameters: config.parameters,
+        }));
+      }
+      if (config.mailOn) {
+        setWorkflowConfig((prev) => ({
+          ...prev,
+          mailOn: config.mailOn,
+        }));
+      }
+    }
+  }, [yamlContent]);
 
   // Connection state
   const connectingNodeId = useRef<string | null>(null);
@@ -395,6 +433,8 @@ const WorkflowBuilderContent: React.FC = () => {
           onNodeConfigChange={handleNodeConfigChange}
           nodes={nodes}
           edges={edges}
+          yamlContent={yamlContent}
+          isEditMode={isEditMode}
         />
       </Paper>
 
@@ -411,12 +451,65 @@ const WorkflowBuilderContent: React.FC = () => {
   );
 };
 
-const WorkflowBuilder: React.FC = () => {
+const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
+  yamlContent,
+  dagName,
+  isEditMode,
+}) => {
   return (
     <ReactFlowProvider>
-      <WorkflowBuilderContent />
+      <WorkflowBuilderContent
+        yamlContent={yamlContent}
+        dagName={dagName}
+        isEditMode={isEditMode}
+      />
     </ReactFlowProvider>
   );
+};
+
+// Add the YAML parsing utility if not already present
+const parseYamlConfig = (yamlContent: string): Partial<WorkflowConfig> => {
+  try {
+    const config = yaml.load(yamlContent) as any;
+    return {
+      description: config.description || '',
+      parameters: parseYamlParams(config.params || []),
+      mailOn: {
+        success: config.mailOn?.success || false,
+        failure: config.mailOn?.failure || false,
+      },
+    };
+  } catch (e) {
+    console.error('Failed to parse YAML:', e);
+    return {};
+  }
+};
+
+// Add the parameters parsing utility if not already present
+const parseYamlParams = (
+  yamlParams: Array<Record<string, any>>
+): Parameter[] => {
+  if (!yamlParams) return [];
+
+  return yamlParams.map((param) => {
+    const [name, value] = Object.entries(param)[0];
+    let defaultValue = String(value);
+
+    // For numbers, keep as is without quotes
+    if (typeof value === 'number') {
+      defaultValue = String(value);
+    } else {
+      // For strings, always add quotes, even if they contain backticks
+      if (!defaultValue.startsWith('"')) {
+        defaultValue = `"${defaultValue}"`;
+      }
+    }
+
+    return {
+      name,
+      defaultValue,
+    };
+  });
 };
 
 export default WorkflowBuilder;
