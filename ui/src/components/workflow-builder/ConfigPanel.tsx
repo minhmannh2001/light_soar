@@ -17,10 +17,23 @@ import {
   Switch,
   SxProps,
   Theme,
-  Paper
+  Paper,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  IconButton,
 } from '@mui/material';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faArrowLeft, faCopy } from '@fortawesome/free-solid-svg-icons';
+import DeleteIcon from '@mui/icons-material/Delete';
+
+interface Parameter {
+  name: string;
+  defaultValue: string;
+}
 
 interface WorkflowConfig {
   name: string;
@@ -28,6 +41,11 @@ interface WorkflowConfig {
   timeoutSec: number;
   delaySec: number;
   histRetentionDays: number;
+  parameters: Parameter[];
+  mailOn: {
+    success: boolean;
+    failure: boolean;
+  };
 }
 
 interface TriggerConfig {
@@ -37,26 +55,26 @@ interface TriggerConfig {
 
 interface ActionNodeConfig {
   // Basic Info
-  name: string;              // Required
-  description?: string;      // Optional description
-  output?: string;          // Variable name to store output
+  name: string; // Required
+  description?: string; // Optional description
+  output?: string; // Variable name to store output
 
   // Execution
-  command?: string;         // Command to execute
-  script?: string;          // Inline script content
+  command?: string; // Command to execute
+  script?: string; // Inline script content
 
   // Retry Settings
   retryPolicy?: {
-    limit: number;          // Number of retry attempts
-    intervalSec: number;    // Seconds between retries
+    limit: number; // Number of retry attempts
+    intervalSec: number; // Seconds between retries
   };
 
   // Error Handling
   continueOn?: {
-    failure: boolean;       // Continue workflow on failure
-    skipped: boolean;       // Continue if step is skipped
-    exitCode: number[];     // Array of acceptable exit codes
-    markSuccess: boolean;   // Mark as success despite failure
+    failure: boolean; // Continue workflow on failure
+    skipped: boolean; // Continue if step is skipped
+    exitCode: number[]; // Array of acceptable exit codes
+    markSuccess: boolean; // Mark as success despite failure
   };
 }
 
@@ -97,7 +115,20 @@ interface ActionConfigPanelProps {
 }
 
 const commonStyles: SxProps<Theme> = {
-  p: 2
+  p: 2,
+};
+
+const isValidName = (name: string): boolean => {
+  return /^[^\s]+$/.test(name);
+};
+
+const isValidParamValue = (value: string): boolean => {
+  // Allow strings and numbers (including decimals)
+  return (
+    /^[0-9]+(\.[0-9]+)?$/.test(value) ||
+    /^".*"$/.test(value) ||
+    /^'.*'$/.test(value)
+  );
 };
 
 const ConfigPanel: React.FC<ConfigPanelProps> = ({
@@ -106,7 +137,7 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({
   onWorkflowConfigChange,
   onNodeConfigChange,
   nodes,
-  edges
+  edges,
 }) => {
   if (!selectedNode) {
     return (
@@ -114,22 +145,158 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({
         <Typography variant="h6" sx={{ mb: 2 }}>
           Workflow Configuration
         </Typography>
+
         <TextField
           fullWidth
+          required
           label="Name"
           value={workflowConfig.name}
           onChange={(e) => onWorkflowConfigChange('name', e.target.value)}
+          error={
+            workflowConfig.name !== '' && !isValidName(workflowConfig.name)
+          }
+          helperText={
+            workflowConfig.name !== '' && !isValidName(workflowConfig.name)
+              ? 'Name cannot contain spaces'
+              : ''
+          }
           sx={{ mb: 2 }}
         />
+
         <TextField
           fullWidth
           multiline
           rows={2}
           label="Description"
           value={workflowConfig.description}
-          onChange={(e) => onWorkflowConfigChange('description', e.target.value)}
+          onChange={(e) =>
+            onWorkflowConfigChange('description', e.target.value)
+          }
           sx={{ mb: 2 }}
         />
+
+        <Typography variant="subtitle1" sx={{ mb: 1 }}>
+          Parameters
+        </Typography>
+
+        <TableContainer component={Paper} sx={{ mb: 2 }}>
+          <Table size="small">
+            <TableHead>
+              <TableRow>
+                <TableCell>Name</TableCell>
+                <TableCell>Default Value</TableCell>
+                <TableCell width={50}></TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {(workflowConfig.parameters || []).map((param, index) => (
+                <TableRow key={index}>
+                  <TableCell>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      value={param.name}
+                      onChange={(e) => {
+                        const newParams = [...workflowConfig.parameters];
+                        newParams[index].name = e.target.value;
+                        onWorkflowConfigChange('parameters', newParams);
+                      }}
+                      error={param.name !== '' && !isValidName(param.name)}
+                      helperText={
+                        param.name !== '' && !isValidName(param.name)
+                          ? 'Name cannot contain spaces'
+                          : ''
+                      }
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      value={param.defaultValue}
+                      onChange={(e) => {
+                        const newParams = [...workflowConfig.parameters];
+                        newParams[index].defaultValue = e.target.value;
+                        onWorkflowConfigChange('parameters', newParams);
+                      }}
+                      error={
+                        param.defaultValue !== '' &&
+                        !isValidParamValue(param.defaultValue)
+                      }
+                      helperText={
+                        param.defaultValue !== '' &&
+                        !isValidParamValue(param.defaultValue)
+                          ? 'Must be a number or quoted string'
+                          : ''
+                      }
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <IconButton
+                      size="small"
+                      onClick={() => {
+                        const newParams = workflowConfig.parameters.filter(
+                          (_, i) => i !== index
+                        );
+                        onWorkflowConfigChange('parameters', newParams);
+                      }}
+                    >
+                      <DeleteIcon />
+                    </IconButton>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+          <Button
+            fullWidth
+            onClick={() => {
+              const newParams = [
+                ...(workflowConfig.parameters || []),
+                { name: '', defaultValue: '' },
+              ];
+              onWorkflowConfigChange('parameters', newParams);
+            }}
+            sx={{ mt: 1 }}
+          >
+            Add Parameter
+          </Button>
+        </TableContainer>
+
+        <Typography variant="subtitle1" sx={{ mb: 1 }}>
+          Send Mail On
+        </Typography>
+        <FormGroup sx={{ mb: 2 }}>
+          <FormControlLabel
+            control={
+              <Switch
+                checked={workflowConfig.mailOn?.success || false}
+                onChange={(e) =>
+                  onWorkflowConfigChange('mailOn', {
+                    ...workflowConfig.mailOn,
+                    success: e.target.checked,
+                  })
+                }
+              />
+            }
+            label="Success"
+          />
+          <FormControlLabel
+            control={
+              <Switch
+                checked={workflowConfig.mailOn?.failure || false}
+                onChange={(e) =>
+                  onWorkflowConfigChange('mailOn', {
+                    ...workflowConfig.mailOn,
+                    failure: e.target.checked,
+                  })
+                }
+              />
+            }
+            label="Failure"
+          />
+        </FormGroup>
+
         {/* ... rest of workflow config ... */}
       </Box>
     );
@@ -191,7 +358,9 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({
               value={selectedNode.data.config?.name || ''}
               onChange={(e) => onNodeConfigChange('name', e.target.value)}
               error={!selectedNode.data.config?.name}
-              helperText={!selectedNode.data.config?.name ? 'Step name is required' : ''}
+              helperText={
+                !selectedNode.data.config?.name ? 'Step name is required' : ''
+              }
               sx={{ mb: 2 }}
             />
 
@@ -201,7 +370,9 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({
               rows={2}
               label="Description"
               value={selectedNode.data.config?.description || ''}
-              onChange={(e) => onNodeConfigChange('description', e.target.value)}
+              onChange={(e) =>
+                onNodeConfigChange('description', e.target.value)
+              }
               sx={{ mb: 2 }}
             />
 
@@ -243,13 +414,25 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({
                   type="number"
                   label="Retry Limit"
                   value={selectedNode.data.config?.retryPolicy?.limit ?? 2}
-                  onChange={(e) => onNodeConfigChange('retryPolicy.limit', parseInt(e.target.value))}
+                  onChange={(e) =>
+                    onNodeConfigChange(
+                      'retryPolicy.limit',
+                      parseInt(e.target.value)
+                    )
+                  }
                 />
                 <TextField
                   type="number"
                   label="Interval (sec)"
-                  value={selectedNode.data.config?.retryPolicy?.intervalSec ?? 5}
-                  onChange={(e) => onNodeConfigChange('retryPolicy.intervalSec', parseInt(e.target.value))}
+                  value={
+                    selectedNode.data.config?.retryPolicy?.intervalSec ?? 5
+                  }
+                  onChange={(e) =>
+                    onNodeConfigChange(
+                      'retryPolicy.intervalSec',
+                      parseInt(e.target.value)
+                    )
+                  }
                 />
               </Box>
             </Box>
@@ -261,8 +444,12 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({
               <FormControlLabel
                 control={
                   <Switch
-                    checked={selectedNode.data.config?.continueOn?.failure || false}
-                    onChange={(e) => onNodeConfigChange('continueOn.failure', e.target.checked)}
+                    checked={
+                      selectedNode.data.config?.continueOn?.failure || false
+                    }
+                    onChange={(e) =>
+                      onNodeConfigChange('continueOn.failure', e.target.checked)
+                    }
                   />
                 }
                 label="Continue on Failure"
@@ -270,8 +457,12 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({
               <FormControlLabel
                 control={
                   <Switch
-                    checked={selectedNode.data.config?.continueOn?.skipped || false}
-                    onChange={(e) => onNodeConfigChange('continueOn.skipped', e.target.checked)}
+                    checked={
+                      selectedNode.data.config?.continueOn?.skipped || false
+                    }
+                    onChange={(e) =>
+                      onNodeConfigChange('continueOn.skipped', e.target.checked)
+                    }
                   />
                 }
                 label="Continue if Skipped"
@@ -279,8 +470,15 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({
               <FormControlLabel
                 control={
                   <Switch
-                    checked={selectedNode.data.config?.continueOn?.markSuccess || false}
-                    onChange={(e) => onNodeConfigChange('continueOn.markSuccess', e.target.checked)}
+                    checked={
+                      selectedNode.data.config?.continueOn?.markSuccess || false
+                    }
+                    onChange={(e) =>
+                      onNodeConfigChange(
+                        'continueOn.markSuccess',
+                        e.target.checked
+                      )
+                    }
                   />
                 }
                 label="Mark as Success"
@@ -290,12 +488,14 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({
             <TextField
               fullWidth
               label="Exit Codes"
-              value={selectedNode.data.config?.continueOn?.exitCode?.join(', ') || ''}
+              value={
+                selectedNode.data.config?.continueOn?.exitCode?.join(', ') || ''
+              }
               onChange={(e) => {
                 const codes = e.target.value
                   .split(',')
-                  .map(code => parseInt(code.trim()))
-                  .filter(code => !isNaN(code));
+                  .map((code) => parseInt(code.trim()))
+                  .filter((code) => !isNaN(code));
                 onNodeConfigChange('continueOn.exitCode', codes);
               }}
               helperText="Comma-separated list of acceptable exit codes"
@@ -306,8 +506,8 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({
 
     case 'condition':
       const followingNodes = edges
-        .filter(edge => edge.source === selectedNode.id)
-        .map(edge => nodes.find(node => node.id === edge.target))
+        .filter((edge) => edge.source === selectedNode.id)
+        .map((edge) => nodes.find((node) => node.id === edge.target))
         .filter(Boolean);
 
       return (
@@ -340,7 +540,7 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({
                       p: 2,
                       border: 1,
                       borderColor: 'divider',
-                      borderRadius: 1
+                      borderRadius: 1,
                     }}
                   >
                     <Typography variant="subtitle2" sx={{ mb: 1 }}>
@@ -351,11 +551,16 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({
                       fullWidth
                       required
                       label="Condition"
-                      value={selectedNode.data.config?.nextNodes?.[node.id]?.precondition?.condition || ''}
-                      onChange={(e) => onNodeConfigChange(
-                        `nextNodes.${node.id}.precondition.condition`,
-                        e.target.value
-                      )}
+                      value={
+                        selectedNode.data.config?.nextNodes?.[node.id]
+                          ?.precondition?.condition || ''
+                      }
+                      onChange={(e) =>
+                        onNodeConfigChange(
+                          `nextNodes.${node.id}.precondition.condition`,
+                          e.target.value
+                        )
+                      }
                       helperText="Enter condition (e.g., $WEEKDAY, `date '+%d'`, or shell command)"
                       sx={{ mb: 2 }}
                     />
@@ -363,11 +568,16 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({
                     <TextField
                       fullWidth
                       label="Expected Value (Optional)"
-                      value={selectedNode.data.config?.nextNodes?.[node.id]?.precondition?.expected || ''}
-                      onChange={(e) => onNodeConfigChange(
-                        `nextNodes.${node.id}.precondition.expected`,
-                        e.target.value
-                      )}
+                      value={
+                        selectedNode.data.config?.nextNodes?.[node.id]
+                          ?.precondition?.expected || ''
+                      }
+                      onChange={(e) =>
+                        onNodeConfigChange(
+                          `nextNodes.${node.id}.precondition.expected`,
+                          e.target.value
+                        )
+                      }
                       helperText="Enter expected value (e.g., Friday, 01)"
                     />
                   </Box>
@@ -375,7 +585,8 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({
               </>
             ) : (
               <Typography color="text.secondary">
-                Connect this condition to other nodes to configure their preconditions
+                Connect this condition to other nodes to configure their
+                preconditions
               </Typography>
             )}
           </Box>
@@ -391,4 +602,4 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({
   }
 };
 
-export default ConfigPanel; 
+export default ConfigPanel;

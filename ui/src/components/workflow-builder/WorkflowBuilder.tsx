@@ -39,8 +39,8 @@ const initialNodes: Node[] = [
       type: 'webhook',
       config: {
         type: 'webhook',
-        schedule: ''
-      }
+        schedule: '',
+      },
     },
   },
 ];
@@ -49,20 +49,31 @@ const WorkflowBuilderContent: React.FC = () => {
   const { project } = useReactFlow();
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
-  const [selectedNode, setSelectedNode] = useState<{ id: string; type: string; data: NodeData } | null>(null);
+  const [selectedNode, setSelectedNode] = useState<{
+    id: string;
+    type: string;
+    data: NodeData;
+  } | null>(null);
   const [workflowConfig, setWorkflowConfig] = useState({
     name: '',
     description: '',
     timeoutSec: 3600,
     delaySec: 0,
-    histRetentionDays: 30
+    histRetentionDays: 30,
+    parameters: [],
+    mailOn: {
+      success: false,
+      failure: false,
+    },
+    schedule: '',
   });
 
   // Connection state
   const connectingNodeId = useRef<string | null>(null);
   const connectingHandleId = useRef<string | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
-  const [silhouettePosition, setSilhouettePosition] = useState<XYPosition | null>(null);
+  const [silhouettePosition, setSilhouettePosition] =
+    useState<XYPosition | null>(null);
   const [showNodeSelector, setShowNodeSelector] = useState(false);
   const [pendingConnection, setPendingConnection] = useState<{
     sourceNodeId: string;
@@ -74,7 +85,7 @@ const WorkflowBuilderContent: React.FC = () => {
     setSelectedNode({
       id: node.id,
       type: node.type || '',
-      data: node.data as NodeData
+      data: node.data as NodeData,
     });
   };
 
@@ -83,9 +94,9 @@ const WorkflowBuilderContent: React.FC = () => {
   };
 
   const handleWorkflowConfigChange = (field: string, value: any) => {
-    setWorkflowConfig(prev => ({
+    setWorkflowConfig((prev) => ({
       ...prev,
-      [field]: value
+      [field]: value,
     }));
   };
 
@@ -93,7 +104,11 @@ const WorkflowBuilderContent: React.FC = () => {
     if (!selectedNode) return;
 
     // Handle nested fields (e.g., 'retryPolicy.limit', 'continueOn.failure')
-    const updateNestedConfig = (config: any, path: string[], value: any): Record<string, any> => {
+    const updateNestedConfig = (
+      config: any,
+      path: string[],
+      value: any
+    ): Record<string, any> => {
       if (path.length === 1) {
         return { ...config, [path[0]]: value };
       }
@@ -101,12 +116,12 @@ const WorkflowBuilderContent: React.FC = () => {
       const [current, ...rest] = path;
       return {
         ...config,
-        [current]: updateNestedConfig(config[current] || {}, rest, value)
+        [current]: updateNestedConfig(config[current] || {}, rest, value),
       };
     };
 
-    setNodes(nds =>
-      nds.map(node => {
+    setNodes((nds) =>
+      nds.map((node) => {
         if (node.id !== selectedNode.id) return node;
 
         // Split the field path (e.g., 'retryPolicy.limit' -> ['retryPolicy', 'limit'])
@@ -123,14 +138,14 @@ const WorkflowBuilderContent: React.FC = () => {
           ...node,
           data: {
             ...node.data,
-            config: newConfig
-          }
+            config: newConfig,
+          },
         };
       })
     );
 
     // Update selected node state
-    setSelectedNode(prev => {
+    setSelectedNode((prev) => {
       if (!prev) return null;
 
       const fieldPath = field.split('.');
@@ -144,15 +159,18 @@ const WorkflowBuilderContent: React.FC = () => {
         ...prev,
         data: {
           ...prev.data,
-          config: newConfig
-        }
+          config: newConfig,
+        },
       };
     });
   };
 
   // Connection handlers
   const onConnectStart = useCallback(
-    (event: React.MouseEvent | React.TouchEvent, params: OnConnectStartParams) => {
+    (
+      event: React.MouseEvent | React.TouchEvent,
+      params: OnConnectStartParams
+    ) => {
       // Only allow connections from output handles (bottom handles)
       if (params.handleId && params.handleId === 'target') {
         return;
@@ -177,103 +195,110 @@ const WorkflowBuilderContent: React.FC = () => {
     [isConnecting]
   );
 
-  const onConnectEnd = useCallback(
-    (event: MouseEvent | TouchEvent) => {
-      event.preventDefault();
-      event.stopPropagation();
+  const onConnectEnd = useCallback((event: MouseEvent | TouchEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
 
-      if (!connectingNodeId.current) return;
+    if (!connectingNodeId.current) return;
 
-      const targetIsPane = (event?.target as HTMLElement)?.classList.contains(
-        'react-flow__pane'
-      );
+    const targetIsPane = (event?.target as HTMLElement)?.classList.contains(
+      'react-flow__pane'
+    );
 
-      if (targetIsPane) {
-        const x = (event as MouseEvent).clientX;
-        const y = (event as MouseEvent).clientY;
+    if (targetIsPane) {
+      const x = (event as MouseEvent).clientX;
+      const y = (event as MouseEvent).clientY;
 
-        setPendingConnection({
-          sourceNodeId: connectingNodeId.current,
-          sourceHandleId: connectingHandleId.current,
-          position: { x, y }
-        });
-        setShowNodeSelector(true);
-      }
+      setPendingConnection({
+        sourceNodeId: connectingNodeId.current,
+        sourceHandleId: connectingHandleId.current,
+        position: { x, y },
+      });
+      setShowNodeSelector(true);
+    }
 
-      connectingHandleId.current = null;
-      setSilhouettePosition(null);
-      setIsConnecting(false);
-    },
-    []
-  );
+    connectingHandleId.current = null;
+    setSilhouettePosition(null);
+    setIsConnecting(false);
+  }, []);
 
-  const handleNodeSelect = useCallback((type: string) => {
-    if (!pendingConnection) return;
+  const handleNodeSelect = useCallback(
+    (type: string) => {
+      if (!pendingConnection) return;
 
-    const { sourceNodeId, sourceHandleId, position } = pendingConnection;
-    const newNodeId = `node-${nodes.length + 1}`;
+      const { sourceNodeId, sourceHandleId, position } = pendingConnection;
+      const newNodeId = `node-${nodes.length + 1}`;
 
-    // Get the source node's name for the depends field
-    const sourceNode = nodes.find(node => node.id === sourceNodeId);
-    const sourceNodeName = sourceNode?.data.config?.name || sourceNode?.data.label;
+      // Get the source node's name for the depends field
+      const sourceNode = nodes.find((node) => node.id === sourceNodeId);
+      const sourceNodeName =
+        sourceNode?.data.config?.name || sourceNode?.data.label;
 
-    // Create new node with proper initial config structure
-    const newNode = {
-      id: newNodeId,
-      type,
-      position: project(position),
-      data: {
-        label: type.charAt(0).toUpperCase() + type.slice(1),
+      // Create new node with proper initial config structure
+      const newNode = {
+        id: newNodeId,
         type,
-        config: {
-          ...(type === 'action' ? {
-            name: '',
-            description: '',
-            output: '',
-            command: '',
-            script: '',
-            retryPolicy: {
-              limit: 2,
-              intervalSec: 5
-            },
-            continueOn: {
-              failure: false,
-              skipped: false,
-              exitCode: [],
-              markSuccess: false
-            }
-          } : {}),
-          // Add depends field with the source node's name
-          depends: sourceNodeName ? [sourceNodeName] : []
-        }
-      }
-    };
+        position: project(position),
+        data: {
+          label: type.charAt(0).toUpperCase() + type.slice(1),
+          type,
+          config: {
+            ...(type === 'action'
+              ? {
+                  name: '',
+                  description: '',
+                  output: '',
+                  command: '',
+                  script: '',
+                  retryPolicy: {
+                    limit: 2,
+                    intervalSec: 5,
+                  },
+                  continueOn: {
+                    failure: false,
+                    skipped: false,
+                    exitCode: [],
+                    markSuccess: false,
+                  },
+                }
+              : {}),
+            // Add depends field with the source node's name
+            depends: sourceNodeName ? [sourceNodeName] : [],
+          },
+        },
+      };
 
-    // Create edge
-    const newEdge = {
-      id: `edge-${sourceNodeId}-${newNodeId}`,
-      source: sourceNodeId,
-      target: newNodeId,
-      ...(sourceHandleId && { sourceHandle: sourceHandleId })
-    };
+      // Create edge
+      const newEdge = {
+        id: `edge-${sourceNodeId}-${newNodeId}`,
+        source: sourceNodeId,
+        target: newNodeId,
+        ...(sourceHandleId && { sourceHandle: sourceHandleId }),
+      };
 
-    setNodes(nds => [...nds, newNode]);
-    setEdges(eds => [...eds, newEdge]);
-    setPendingConnection(null);
-  }, [nodes.length, pendingConnection, project, nodes]);
+      setNodes((nds) => [...nds, newNode]);
+      setEdges((eds) => [...eds, newEdge]);
+      setPendingConnection(null);
+    },
+    [nodes.length, pendingConnection, project, nodes]
+  );
 
   const showInstruction = nodes.length === 1 && edges.length === 0;
 
   const onConnect = useCallback((params: Connection) => {
-    setEdges(eds => [...eds, { ...params, id: `${params.source}-${params.target}` } as Edge]);
+    setEdges((eds) => [
+      ...eds,
+      { ...params, id: `${params.source}-${params.target}` } as Edge,
+    ]);
 
     // Update the target node's depends field
-    setNodes(nds =>
-      nds.map(node => {
+    setNodes((nds) =>
+      nds.map((node) => {
         if (node.id !== params.target) return node;
 
-        const sourceNode = nds.find(n => n.id === params.source);
-        const sourceNodeName = sourceNode?.data.config?.name || sourceNode?.data.label;
+        const sourceNode = nds.find((n) => n.id === params.source);
+        const sourceNodeName =
+          sourceNode?.data.config?.name || sourceNode?.data.label;
 
         if (!sourceNodeName) return node;
 
@@ -283,31 +308,35 @@ const WorkflowBuilderContent: React.FC = () => {
             ...node.data,
             config: {
               ...node.data.config,
-              depends: [...(node.data.config?.depends || []), sourceNodeName]
-            }
-          }
+              depends: [...(node.data.config?.depends || []), sourceNodeName],
+            },
+          },
         };
       })
     );
   }, []);
 
   return (
-    <Box sx={{
-      display: 'flex',
-      width: '100%',
-      height: 'calc(100vh - 250px)',
-      overflow: 'hidden',
-      position: 'relative'
-    }}>
-      {/* Left side - Workflow Canvas */}
-      <Box sx={{
-        flex: '1 1 80%',
-        height: '100%',
-        bgcolor: 'background.default',
+    <Box
+      sx={{
+        display: 'flex',
+        width: '100%',
+        height: 'calc(100vh - 250px)',
+        overflow: 'hidden',
         position: 'relative',
-        borderRight: '1px solid',
-        borderColor: 'divider'
-      }}>
+      }}
+    >
+      {/* Left side - Workflow Canvas */}
+      <Box
+        sx={{
+          flex: '1 1 80%',
+          height: '100%',
+          bgcolor: 'background.default',
+          position: 'relative',
+          borderRight: '1px solid',
+          borderColor: 'divider',
+        }}
+      >
         <ReactFlow
           nodes={nodes}
           edges={edges}
@@ -341,7 +370,7 @@ const WorkflowBuilderContent: React.FC = () => {
               px: 3,
               py: 2,
               borderRadius: 1,
-              boxShadow: 1
+              boxShadow: 1,
             }}
           >
             <Typography variant="body2" color="text.secondary">
@@ -352,11 +381,13 @@ const WorkflowBuilderContent: React.FC = () => {
       </Box>
 
       {/* Right side - Configuration Panel */}
-      <Paper sx={{
-        flex: '0 0 20%',
-        height: '100%',
-        overflow: 'auto'
-      }}>
+      <Paper
+        sx={{
+          flex: '0 0 20%',
+          height: '100%',
+          overflow: 'auto',
+        }}
+      >
         <ConfigPanel
           selectedNode={selectedNode}
           workflowConfig={workflowConfig}
@@ -388,4 +419,4 @@ const WorkflowBuilder: React.FC = () => {
   );
 };
 
-export default WorkflowBuilder; 
+export default WorkflowBuilder;
