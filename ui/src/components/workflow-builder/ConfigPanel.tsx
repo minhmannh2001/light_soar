@@ -193,10 +193,11 @@ const ActionNodePanel: React.FC<{
   config: ActionNodeConfig;
   onChange: (field: string, value: any) => void;
 }> = ({ config, onChange }) => {
-  // Initialize scriptType if it's not set but command is bash
+  // Initialize scriptType if it's not set
   React.useEffect(() => {
-    if (!config.scriptType && config.command === 'bash') {
+    if (!config.scriptType) {
       onChange('scriptType', 'bash');
+      onChange('command', 'bash');
     }
   }, []);
 
@@ -237,12 +238,12 @@ const ActionNodePanel: React.FC<{
     onChange('pythonFile', ''); // Clear selected Python file
   };
 
-  // Add effect to handle command field changes
-  React.useEffect(() => {
-    if (config.command === 'bash') {
-      onChange('scriptType', 'bash');
-    }
-  }, [config.command, onChange]);
+  // Handle script content change without modifying the command
+  const handleScriptChange = (newScript: string) => {
+    onChange('script', newScript);
+    // Remove this line that was changing the command
+    // onChange('command', newScript);
+  };
 
   const handlePythonFileSelect = async (fileName: string) => {
     try {
@@ -304,7 +305,7 @@ const ActionNodePanel: React.FC<{
         rows={6}
         label="Script Content"
         value={config.script || ''}
-        onChange={(e) => onChange('script', e.target.value)}
+        onChange={(e) => handleScriptChange(e.target.value)}
         disabled={config.scriptType === 'python'} // Disable editing for Python files
         sx={{ mb: 2 }}
       />

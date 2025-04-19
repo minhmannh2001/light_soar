@@ -7,6 +7,8 @@ import {
   Typography,
   ToggleButtonGroup,
   ToggleButton,
+  Snackbar,
+  Alert,
 } from '@mui/material';
 import useSWR from 'swr';
 import { AppBarContext } from '../../contexts/AppBarContext';
@@ -23,6 +25,7 @@ function EditWorkflow() {
   const appBarContext = React.useContext(AppBarContext);
   const [content, setContent] = React.useState('');
   const [editMode, setEditMode] = React.useState<EditMode>('code');
+  const [showYamlNotification, setShowYamlNotification] = React.useState(false);
 
   // Fetch workflow content using the same endpoint as DAGDetails
   const { data, error } = useSWR<GetDAGResponse>(
@@ -80,6 +83,11 @@ function EditWorkflow() {
     setEditMode('visual');
   };
 
+  const handleYamlChange = (newYaml: string) => {
+    setContent(newYaml);
+    setShowYamlNotification(true);
+  };
+
   const renderEditor = () => {
     if (editMode === 'code') {
       return (
@@ -91,7 +99,12 @@ function EditWorkflow() {
     }
 
     return (
-      <WorkflowBuilder yamlContent={content} dagName={name} isEditMode={true} />
+      <WorkflowBuilder
+        yamlContent={content}
+        dagName={name}
+        isEditMode={true}
+        onYamlChange={handleYamlChange}
+      />
     );
   };
 
@@ -161,6 +174,20 @@ function EditWorkflow() {
           {renderEditor()}
         </BorderedBox>
       </Paper>
+      <Snackbar
+        open={showYamlNotification}
+        autoHideDuration={3000}
+        onClose={() => setShowYamlNotification(false)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert
+          onClose={() => setShowYamlNotification(false)}
+          severity="success"
+          sx={{ width: '100%' }}
+        >
+          YAML content updated successfully
+        </Alert>
+      </Snackbar>
     </Box>
   );
 }

@@ -1,5 +1,5 @@
 import React, { useCallback, useRef, useState } from 'react';
-import { Box, Paper, Typography } from '@mui/material';
+import { Box, Paper, Typography, Button } from '@mui/material';
 import ReactFlow, {
   Node,
   Edge,
@@ -50,6 +50,7 @@ interface WorkflowBuilderProps {
   yamlContent?: string;
   dagName?: string;
   isEditMode?: boolean;
+  onYamlChange?: (yaml: string) => void;
 }
 
 interface Step {
@@ -79,6 +80,7 @@ const WorkflowBuilderContent: React.FC<WorkflowBuilderProps> = ({
   yamlContent,
   dagName,
   isEditMode,
+  onYamlChange,
 }) => {
   const { project } = useReactFlow();
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
@@ -89,7 +91,7 @@ const WorkflowBuilderContent: React.FC<WorkflowBuilderProps> = ({
     data: NodeData;
   } | null>(null);
   const [workflowConfig, setWorkflowConfig] = useState({
-    name: dagName || '', // Initialize with dagName if provided
+    name: dagName || '',
     description: '',
     timeoutSec: 3600,
     delaySec: 0,
@@ -101,6 +103,13 @@ const WorkflowBuilderContent: React.FC<WorkflowBuilderProps> = ({
     },
     schedule: '',
   });
+
+  const handleGenerateYaml = () => {
+    if (onYamlChange) {
+      const newYaml = generateYamlFromWorkflow(nodes, edges, workflowConfig);
+      onYamlChange(newYaml);
+    }
+  };
 
   // Add effect to load YAML content when switching to visual editor
   React.useEffect(() => {
@@ -124,6 +133,8 @@ const WorkflowBuilderContent: React.FC<WorkflowBuilderProps> = ({
       }
     }
   }, [yamlContent, setNodes, setEdges]);
+
+  // Remove the auto-update effect that was here before
 
   // Connection state
   const connectingNodeId = useRef<string | null>(null);
@@ -167,12 +178,10 @@ const WorkflowBuilderContent: React.FC<WorkflowBuilderProps> = ({
       value: any
     ): Record<string, any> => {
       if (path.length === 1) {
-        // If updating command field, also update scriptType and command value
-        if (path[0] === 'script' && value) {
+        // When updating script field, don't modify scriptType and command
+        if (path[0] === 'script') {
           return {
             ...config,
-            scriptType: 'command',
-            command: 'command',
             [path[0]]: value,
           };
         }
@@ -295,7 +304,7 @@ const WorkflowBuilderContent: React.FC<WorkflowBuilderProps> = ({
       const { sourceNodeId, sourceHandleId, position } = pendingConnection;
       const newNodeId = `node-${nodes.length + 1}`;
 
-      // Create new node with source node ID in depends
+      // Create new node with source node ID in depends, but only if source is not trigger
       const newNode = {
         id: newNodeId,
         type,
@@ -328,7 +337,11 @@ const WorkflowBuilderContent: React.FC<WorkflowBuilderProps> = ({
                   },
                 }
               : {}),
-            depends: sourceNodeId ? [sourceNodeId] : [],
+            // Only add to depends if source is not trigger node
+            depends:
+              sourceNodeId && !sourceNodeId.startsWith('trigger-')
+                ? [sourceNodeId]
+                : [],
           },
         },
       };
@@ -356,10 +369,15 @@ const WorkflowBuilderContent: React.FC<WorkflowBuilderProps> = ({
       { ...params, id: `${params.source}-${params.target}` } as Edge,
     ]);
 
-    // Update the target node's depends field
+    // Update the target node's depends field, but only if source is not trigger
     setNodes((nds) =>
       nds.map((node) => {
         if (node.id !== params.target) return node;
+
+        // Skip updating depends if source is trigger node
+        if (params.source.startsWith('trigger-')) {
+          return node;
+        }
 
         // Get current depends array or initialize empty array
         const currentDepends = node.data.config?.depends || [];
@@ -404,6 +422,31 @@ const WorkflowBuilderContent: React.FC<WorkflowBuilderProps> = ({
           borderColor: 'divider',
         }}
       >
+        <Box
+          sx={{
+            position: 'absolute',
+            top: 10,
+            right: 10,
+            zIndex: 10,
+            display: 'flex',
+            gap: 1,
+          }}
+        >
+          <Button
+            variant="contained"
+            size="small"
+            onClick={handleGenerateYaml}
+            sx={{
+              backgroundColor: 'primary.main',
+              color: 'white',
+              '&:hover': {
+                backgroundColor: 'primary.dark',
+              },
+            }}
+          >
+            Generate YAML
+          </Button>
+        </Box>
         <ReactFlow
           nodes={nodes}
           edges={edges}
@@ -484,6 +527,7 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
   yamlContent,
   dagName,
   isEditMode,
+  onYamlChange,
 }) => {
   return (
     <ReactFlowProvider>
@@ -491,6 +535,7 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
         yamlContent={yamlContent}
         dagName={dagName}
         isEditMode={isEditMode}
+        onYamlChange={onYamlChange}
       />
     </ReactFlowProvider>
   );
@@ -676,6 +721,132 @@ const parseYamlParams = (
       defaultValue,
     };
   });
+};
+
+// Add this function to convert nodes and edges back to YAML format
+const generateYamlFromWorkflow = (
+  nodes: Node[],
+  edges: Edge[],
+  workflowConfig: any
+): string => {
+  // Get all nodes except the trigger node
+  const stepNodes = nodes.filter((node) => node.id !== 'trigger-1');
+
+  // Create a map of node IDs to names for dependency resolution
+  const nodeIdToName = new Map(
+    stepNodes.map((node) => [node.id, node.data.config.name])
+  );
+
+  // Convert nodes to steps format
+  const steps = stepNodes.map((node) => {
+    const config = node.data.config;
+    const step: any = {
+      name: config.name,
+    };
+
+    // Add description if present
+    if (config.description) {
+      step.description = config.description;
+    }
+
+    // Handle script and command
+    if (config.scriptType === 'bash') {
+      step.command = 'bash';
+      if (config.script) {
+        step.script = config.script;
+      }
+    } else if (config.scriptType === 'python') {
+      step.command = 'python';
+      if (config.pythonFile) {
+        // Handle Python file selection
+        step.script = config.pythonFile;
+      }
+    }
+
+    // Add output if present
+    if (config.output) {
+      step.output = config.output;
+    }
+
+    // Convert node IDs to node names in depends array
+    if (config.depends && config.depends.length > 0) {
+      step.depends = config.depends
+        .map((id) => nodeIdToName.get(id))
+        .filter((name) => name !== undefined);
+    }
+
+    // Add retry policy if present
+    if (config.retryPolicy?.limit > 0) {
+      step.retryPolicy = {
+        limit: config.retryPolicy.limit,
+        intervalSec: config.retryPolicy.intervalSec,
+      };
+    }
+
+    // Add continue on if present
+    if (
+      config.continueOn?.failure ||
+      config.continueOn?.skipped ||
+      config.continueOn?.markSuccess
+    ) {
+      step.continueOn = {
+        ...(config.continueOn.failure && { failure: true }),
+        ...(config.continueOn.skipped && { skipped: true }),
+        ...(config.continueOn.markSuccess && { markSuccess: true }),
+      };
+    }
+
+    // Add mail on if present
+    if (config.mailOn?.success || config.mailOn?.failure) {
+      step.mailOn = {
+        ...(config.mailOn.success && { success: true }),
+        ...(config.mailOn.failure && { failure: true }),
+      };
+    }
+
+    return step;
+  });
+
+  const yamlStructure: any = {
+    steps,
+  };
+
+  // Add description if present
+  if (workflowConfig.description) {
+    yamlStructure.description = workflowConfig.description;
+  }
+
+  // Add schedule only if it's not empty
+  if (workflowConfig.schedule) {
+    yamlStructure.schedule = workflowConfig.schedule;
+  }
+
+  // Add parameters if present
+  if (workflowConfig.parameters && workflowConfig.parameters.length > 0) {
+    yamlStructure.params = workflowConfig.parameters.map((param) => {
+      const value = param.defaultValue.replace(/^["']|["']$/g, '');
+
+      // If value can be converted to a number and doesn't start with quotes, keep it as number
+      const numValue = Number(value);
+      if (!isNaN(numValue) && !param.defaultValue.startsWith('"')) {
+        return { [param.name]: numValue };
+      }
+
+      // Otherwise keep it as string
+      return { [param.name]: value };
+    });
+  }
+
+  // Add mail configuration if enabled
+  if (workflowConfig.mailOn?.success || workflowConfig.mailOn?.failure) {
+    yamlStructure.mailOn = {
+      ...(workflowConfig.mailOn.success && { success: true }),
+      ...(workflowConfig.mailOn.failure && { failure: true }),
+    };
+  }
+
+  // Convert to YAML string
+  return yaml.dump(yamlStructure, { indent: 2 });
 };
 
 export default WorkflowBuilder;
