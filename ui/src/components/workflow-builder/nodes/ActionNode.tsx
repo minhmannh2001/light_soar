@@ -12,12 +12,15 @@ interface ActionNodeProps {
     config: {
       name: string;
       command: string;
+      script: string;
     };
   };
 }
 
 const ActionNode: React.FC<ActionNodeProps> = ({ data }) => {
-  const isConfigured = data.config?.name !== '';
+  const isConfigured = Boolean(
+    data.config?.name && data.config?.command && data.config?.script
+  );
 
   return (
     <Box sx={{ position: 'relative', my: 2 }}>
@@ -33,7 +36,9 @@ const ActionNode: React.FC<ActionNodeProps> = ({ data }) => {
           flexDirection: 'column',
           gap: 0.5,
           position: 'relative',
-          overflow: 'visible'
+          overflow: 'visible',
+          // Add visual indication of configuration status
+          border: isConfigured ? '2px solid #4caf50' : '2px solid #ff9800',
         }}
       >
         {/* Top Section */}
@@ -43,52 +48,41 @@ const ActionNode: React.FC<ActionNodeProps> = ({ data }) => {
               width: 24,
               height: 24,
               borderRadius: '50%',
-              bgcolor: 'success.main',
+              bgcolor: isConfigured ? 'success.main' : 'warning.main',
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center'
+              justifyContent: 'center',
             }}
           >
-            <FontAwesomeIcon
-              icon={faPlay}
-              size="xs"
-              color="#fff"
-            />
+            <FontAwesomeIcon icon={faPlay} size="xs" color="#fff" />
           </Box>
-          <Typography variant="caption" fontWeight="bold" sx={{ fontSize: '0.75rem' }}>
+          <Typography
+            variant="caption"
+            fontWeight="bold"
+            sx={{ fontSize: '0.75rem' }}
+          >
             {data.config?.name || data.label}
           </Typography>
+          {isConfigured && (
+            <CheckCircleIcon
+              sx={{
+                fontSize: 16,
+                color: 'success.main',
+                marginLeft: 'auto',
+              }}
+            />
+          )}
         </Box>
-
-        {/* Description */}
-        <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
-          Action Node
+        {/* Add status indicator */}
+        <Typography
+          variant="caption"
+          sx={{
+            color: isConfigured ? 'success.main' : 'warning.main',
+            fontSize: '0.6rem',
+          }}
+        >
+          {isConfigured ? 'Configured' : 'Not Configured'}
         </Typography>
-
-        {/* Divider */}
-        <Divider sx={{ my: 0.5 }} />
-
-        {/* Status */}
-        <Box sx={{ display: 'flex', justifyContent: 'flex-start' }}>
-          <Chip
-            icon={<CheckCircleIcon sx={{ color: isConfigured ? 'success.main' : 'warning.main', fontSize: '0.7rem' }} />}
-            label={isConfigured ? 'Configured' : 'Not Configured'}
-            sx={{
-              bgcolor: isConfigured ? 'rgba(46, 125, 50, 0.1)' : 'rgba(237, 108, 2, 0.1)',
-              color: isConfigured ? 'success.main' : 'warning.main',
-              height: 20,
-              '& .MuiChip-label': {
-                fontSize: '0.6rem',
-                px: 0.5
-              },
-              '& .MuiChip-icon': {
-                fontSize: '0.75rem',
-                ml: 0.5
-              }
-            }}
-            size="small"
-          />
-        </Box>
       </Card>
     </Box>
   );

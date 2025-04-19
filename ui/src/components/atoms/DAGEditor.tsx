@@ -37,9 +37,15 @@ function DAGEditor({ value, onChange }: Props) {
   const editorDidMount = (editor: monaco.editor.IStandaloneCodeEditor) => {
     editorRef.current = editor;
 
+    // Wait for editor to be fully initialized and content to be set
     setTimeout(() => {
-      editor.getAction('editor.action.formatDocument')?.run();
-    }, 100);
+      const action = editor.getAction('editor.action.formatDocument');
+      if (action && editor.hasTextFocus()) {
+        action.run().catch((err) => {
+          console.warn('Format document action failed:', err);
+        });
+      }
+    }, 300); // Increased timeout to ensure content is loaded
   };
 
   return (

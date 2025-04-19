@@ -58,8 +58,10 @@ interface ActionNodeConfig {
   output?: string; // Variable name to store output
 
   // Execution
-  command?: string; // Command to execute
-  script?: string; // Inline script content
+  scriptType: 'bash' | 'python';
+  pythonFile?: string;
+  command?: string;
+  script?: string;
 
   // Retry Settings
   retryPolicy?: {
@@ -71,8 +73,13 @@ interface ActionNodeConfig {
   continueOn?: {
     failure: boolean; // Continue workflow on failure
     skipped: boolean; // Continue if step is skipped
-    exitCode: number[]; // Array of acceptable exit codes
     markSuccess: boolean; // Mark as success despite failure
+  };
+
+  // Mail Notifications
+  mailOn?: {
+    failure: boolean;
+    success: boolean;
   };
 }
 
@@ -112,6 +119,11 @@ interface ConfigPanelProps {
 interface ActionConfigPanelProps {
   config: ActionNodeConfig;
   onChange: (field: string, value: any) => void;
+}
+
+interface PythonFile {
+  name: string;
+  content: string;
 }
 
 const commonStyles: SxProps<Theme> = {
@@ -175,6 +187,129 @@ const parseYamlConfig = (yamlContent: string): Partial<WorkflowConfig> => {
     console.error('Failed to parse YAML:', e);
     return {};
   }
+};
+
+const ActionNodePanel: React.FC<{
+  config: ActionNodeConfig;
+  onChange: (field: string, value: any) => void;
+}> = ({ config, onChange }) => {
+  // Initialize scriptType if it's not set but command is bash
+  React.useEffect(() => {
+    if (!config.scriptType && config.command === 'bash') {
+      onChange('scriptType', 'bash');
+    }
+  }, []);
+
+  const [pythonFiles, setPythonFiles] = React.useState<PythonFile[]>([]);
+  const [isLoading, setIsLoading] = React.useState(false);
+
+  const fetchPythonFiles = React.useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const response = await fetch(`${getConfig().apiURL}/python-files`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch Python files');
+      }
+      const files = await response.json();
+      setPythonFiles(files);
+    } catch (error) {
+      console.error('Error fetching Python files:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    if (config.scriptType === 'python') {
+      fetchPythonFiles();
+    }
+  }, [config.scriptType]);
+
+  // Update script type handler
+  const handleScriptTypeChange = (newType: 'bash' | 'python') => {
+    onChange('scriptType', newType);
+    if (newType === 'bash') {
+      onChange('command', 'bash');
+    } else if (newType === 'python') {
+      onChange('command', 'python');
+    }
+    onChange('script', ''); // Clear script
+    onChange('pythonFile', ''); // Clear selected Python file
+  };
+
+  // Add effect to handle command field changes
+  React.useEffect(() => {
+    if (config.command === 'bash') {
+      onChange('scriptType', 'bash');
+    }
+  }, [config.command, onChange]);
+
+  const handlePythonFileSelect = async (fileName: string) => {
+    try {
+      const response = await fetch(
+        `${getConfig().apiURL}/python-files/${fileName}`
+      );
+      if (!response.ok) {
+        throw new Error('Failed to fetch Python file content');
+      }
+      const data = await response.json();
+      onChange('script', data.content);
+      onChange('pythonFile', fileName);
+    } catch (error) {
+      console.error('Error fetching Python file content:', error);
+    }
+  };
+
+  return (
+    <>
+      <FormControl fullWidth sx={{ mb: 2 }}>
+        <InputLabel>Script Type</InputLabel>
+        <Select
+          value={config.scriptType || (config.command === 'bash' ? 'bash' : '')}
+          onChange={(e) =>
+            handleScriptTypeChange(e.target.value as 'bash' | 'python')
+          }
+          label="Script Type"
+        >
+          <MenuItem value="bash">Bash Script</MenuItem>
+          <MenuItem value="python">Python Script</MenuItem>
+        </Select>
+      </FormControl>
+
+      {config.scriptType === 'python' && (
+        <FormControl fullWidth sx={{ mb: 2 }}>
+          <InputLabel>Python File</InputLabel>
+          <Select
+            value={config.pythonFile || ''}
+            onChange={(e) => handlePythonFileSelect(e.target.value)}
+            label="Python File"
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <MenuItem disabled>Loading...</MenuItem>
+            ) : (
+              pythonFiles.map((file) => (
+                <MenuItem key={file.name} value={file.name}>
+                  {file.name}
+                </MenuItem>
+              ))
+            )}
+          </Select>
+        </FormControl>
+      )}
+
+      <TextField
+        fullWidth
+        multiline
+        rows={6}
+        label="Script Content"
+        value={config.script || ''}
+        onChange={(e) => onChange('script', e.target.value)}
+        disabled={config.scriptType === 'python'} // Disable editing for Python files
+        sx={{ mb: 2 }}
+      />
+    </>
+  );
 };
 
 const ConfigPanel: React.FC<ConfigPanelProps> = ({
@@ -448,28 +583,13 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({
               label="Output Variable"
               value={selectedNode.data.config?.output || ''}
               onChange={(e) => onNodeConfigChange('output', e.target.value)}
-              helperText="Variable name to store step output"
+              helperText="Variable name to store output of this action"
               sx={{ mb: 2 }}
             />
 
-            <TextField
-              fullWidth
-              label="Command"
-              value={selectedNode.data.config?.command || ''}
-              onChange={(e) => onNodeConfigChange('command', e.target.value)}
-              helperText="Command to execute"
-              sx={{ mb: 2 }}
-            />
-
-            <TextField
-              fullWidth
-              multiline
-              rows={4}
-              label="Script Content"
-              value={selectedNode.data.config?.script || ''}
-              onChange={(e) => onNodeConfigChange('script', e.target.value)}
-              helperText="Inline script content"
-              sx={{ mb: 3 }}
+            <ActionNodePanel
+              config={selectedNode.data.config || {}}
+              onChange={onNodeConfigChange}
             />
 
             <Typography variant="subtitle1" sx={{ mb: 1 }}>
@@ -552,21 +672,33 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({
               />
             </FormGroup>
 
-            <TextField
-              fullWidth
-              label="Exit Codes"
-              value={
-                selectedNode.data.config?.continueOn?.exitCode?.join(', ') || ''
-              }
-              onChange={(e) => {
-                const codes = e.target.value
-                  .split(',')
-                  .map((code) => parseInt(code.trim()))
-                  .filter((code) => !isNaN(code));
-                onNodeConfigChange('continueOn.exitCode', codes);
-              }}
-              helperText="Comma-separated list of acceptable exit codes"
-            />
+            <Typography variant="subtitle1" sx={{ mb: 1 }}>
+              Mail On
+            </Typography>
+            <FormGroup sx={{ mb: 2 }}>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={selectedNode.data.config?.mailOn?.success || false}
+                    onChange={(e) =>
+                      onNodeConfigChange('mailOn.success', e.target.checked)
+                    }
+                  />
+                }
+                label="Success"
+              />
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={selectedNode.data.config?.mailOn?.failure || false}
+                    onChange={(e) =>
+                      onNodeConfigChange('mailOn.failure', e.target.checked)
+                    }
+                  />
+                }
+                label="Failure"
+              />
+            </FormGroup>
           </Box>
         </Paper>
       );

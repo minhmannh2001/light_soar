@@ -52,6 +52,29 @@ interface WorkflowBuilderProps {
   isEditMode?: boolean;
 }
 
+interface Step {
+  name: string;
+  command?: string;
+  description?: string;
+  output?: string;
+  script?: string;
+  precondition?: any;
+  depends?: string[];
+  mailOn?: {
+    success?: boolean;
+    failure?: boolean;
+  };
+  continueOn?: {
+    failure?: boolean;
+    skipped?: boolean;
+    markSuccess?: boolean;
+  };
+  retryPolicy?: {
+    limit?: number;
+    intervalSec?: number;
+  };
+}
+
 const WorkflowBuilderContent: React.FC<WorkflowBuilderProps> = ({
   yamlContent,
   dagName,
@@ -84,27 +107,23 @@ const WorkflowBuilderContent: React.FC<WorkflowBuilderProps> = ({
     if (yamlContent) {
       const config = parseYamlConfig(yamlContent);
 
-      // Update each field individually to maintain other existing values
-      if (config.description !== undefined) {
-        setWorkflowConfig((prev) => ({
-          ...prev,
-          description: config.description,
-        }));
+      // Update workflow configuration
+      setWorkflowConfig((prev) => ({
+        ...prev,
+        description: config.description || prev.description,
+        parameters: config.parameters || prev.parameters,
+        mailOn: config.mailOn || prev.mailOn,
+      }));
+
+      // Set nodes and edges from the parsed YAML
+      if (config.nodes) {
+        setNodes(config.nodes);
       }
-      if (config.parameters) {
-        setWorkflowConfig((prev) => ({
-          ...prev,
-          parameters: config.parameters,
-        }));
-      }
-      if (config.mailOn) {
-        setWorkflowConfig((prev) => ({
-          ...prev,
-          mailOn: config.mailOn,
-        }));
+      if (config.edges) {
+        setEdges(config.edges);
       }
     }
-  }, [yamlContent]);
+  }, [yamlContent, setNodes, setEdges]);
 
   // Connection state
   const connectingNodeId = useRef<string | null>(null);
@@ -148,6 +167,15 @@ const WorkflowBuilderContent: React.FC<WorkflowBuilderProps> = ({
       value: any
     ): Record<string, any> => {
       if (path.length === 1) {
+        // If updating command field, also update scriptType and command value
+        if (path[0] === 'script' && value) {
+          return {
+            ...config,
+            scriptType: 'command',
+            command: 'command',
+            [path[0]]: value,
+          };
+        }
         return { ...config, [path[0]]: value };
       }
 
@@ -267,12 +295,7 @@ const WorkflowBuilderContent: React.FC<WorkflowBuilderProps> = ({
       const { sourceNodeId, sourceHandleId, position } = pendingConnection;
       const newNodeId = `node-${nodes.length + 1}`;
 
-      // Get the source node's name for the depends field
-      const sourceNode = nodes.find((node) => node.id === sourceNodeId);
-      const sourceNodeName =
-        sourceNode?.data.config?.name || sourceNode?.data.label;
-
-      // Create new node with proper initial config structure
+      // Create new node with source node ID in depends
       const newNode = {
         id: newNodeId,
         type,
@@ -283,10 +306,12 @@ const WorkflowBuilderContent: React.FC<WorkflowBuilderProps> = ({
           config: {
             ...(type === 'action'
               ? {
-                  name: '',
+                  name: `${newNodeId}`,
                   description: '',
                   output: '',
-                  command: '',
+                  scriptType: 'bash',
+                  command: 'bash',
+                  pythonFile: '',
                   script: '',
                   retryPolicy: {
                     limit: 2,
@@ -295,13 +320,15 @@ const WorkflowBuilderContent: React.FC<WorkflowBuilderProps> = ({
                   continueOn: {
                     failure: false,
                     skipped: false,
-                    exitCode: [],
                     markSuccess: false,
+                  },
+                  mailOn: {
+                    success: false,
+                    failure: false,
                   },
                 }
               : {}),
-            // Add depends field with the source node's name
-            depends: sourceNodeName ? [sourceNodeName] : [],
+            depends: sourceNodeId ? [sourceNodeId] : [],
           },
         },
       };
@@ -318,7 +345,7 @@ const WorkflowBuilderContent: React.FC<WorkflowBuilderProps> = ({
       setEdges((eds) => [...eds, newEdge]);
       setPendingConnection(null);
     },
-    [nodes.length, pendingConnection, project, nodes]
+    [nodes.length, pendingConnection, project]
   );
 
   const showInstruction = nodes.length === 1 && edges.length === 0;
@@ -334,22 +361,24 @@ const WorkflowBuilderContent: React.FC<WorkflowBuilderProps> = ({
       nds.map((node) => {
         if (node.id !== params.target) return node;
 
-        const sourceNode = nds.find((n) => n.id === params.source);
-        const sourceNodeName =
-          sourceNode?.data.config?.name || sourceNode?.data.label;
+        // Get current depends array or initialize empty array
+        const currentDepends = node.data.config?.depends || [];
 
-        if (!sourceNodeName) return node;
-
-        return {
-          ...node,
-          data: {
-            ...node.data,
-            config: {
-              ...node.data.config,
-              depends: [...(node.data.config?.depends || []), sourceNodeName],
+        // Only add if not already in depends
+        if (!currentDepends.includes(params.source)) {
+          return {
+            ...node,
+            data: {
+              ...node.data,
+              config: {
+                ...node.data.config,
+                depends: [...currentDepends, params.source],
+              },
             },
-          },
-        };
+          };
+        }
+
+        return node;
       })
     );
   }, []);
@@ -467,10 +496,145 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
   );
 };
 
+const VERTICAL_SPACING = 150; // Space between levels
+const HORIZONTAL_SPACING = 200; // Space between nodes horizontally
+
 // Add the YAML parsing utility if not already present
-const parseYamlConfig = (yamlContent: string): Partial<WorkflowConfig> => {
+const parseYamlConfig = (
+  yamlContent: string
+): Partial<WorkflowConfig> & { nodes: any[]; edges: any[] } => {
   try {
     const config = yaml.load(yamlContent) as any;
+    const steps = config.steps || [];
+
+    // Create trigger node at the top
+    const triggerNode = {
+      id: 'trigger-1',
+      type: 'trigger',
+      position: { x: 250, y: 50 }, // Start trigger a bit lower from top
+      data: {
+        label: 'Trigger',
+        type: 'trigger',
+        config: {
+          type: 'webhook',
+          schedule: config.schedule || '',
+        },
+      },
+    };
+
+    // First, identify nodes with no dependencies (top level nodes)
+    const nodesByLevel = {
+      top: [] as any[],
+      below: [] as any[],
+    };
+
+    steps.forEach((step: Step, index: number) => {
+      const nodeId = `node-${index + 1}`;
+      const nodeType = step.precondition ? 'condition' : 'action';
+
+      let scriptType = 'bash';
+      let command = 'bash';
+      let script = step.script || '';
+
+      if (step.command && step.command !== 'bash') {
+        script = step.command;
+      }
+
+      const node = {
+        id: nodeId,
+        type: nodeType,
+        position: { x: 0, y: 0 }, // Position will be set later
+        data: {
+          label: step.name,
+          type: nodeType,
+          config: {
+            name: step.name,
+            description: step.description || '',
+            command: command,
+            output: step.output || '',
+            script: script,
+            scriptType: scriptType,
+            pythonFile: '',
+            depends: step.depends || [],
+            mailOn: {
+              success: step.mailOn?.success || false,
+              failure: step.mailOn?.failure || false,
+            },
+            continueOn: {
+              failure: step.continueOn?.failure || false,
+              skipped: step.continueOn?.skipped || false,
+              markSuccess: step.continueOn?.markSuccess || false,
+            },
+            retryPolicy: {
+              limit: step.retryPolicy?.limit || 2,
+              intervalSec: step.retryPolicy?.intervalSec || 5,
+            },
+            precondition: step.precondition || null,
+          },
+        },
+      };
+
+      // Categorize nodes based on dependencies
+      if (!step.depends || step.depends.length === 0) {
+        nodesByLevel.top.push(node);
+      } else {
+        nodesByLevel.below.push(node);
+      }
+    });
+
+    // Position nodes by level
+    const topLevelY = triggerNode.position.y + VERTICAL_SPACING;
+    const belowLevelY = topLevelY + VERTICAL_SPACING;
+
+    // Position top level nodes
+    nodesByLevel.top = nodesByLevel.top.map((node, index) => ({
+      ...node,
+      position: {
+        x: 250 + index * HORIZONTAL_SPACING,
+        y: topLevelY,
+      },
+    }));
+
+    // Position nodes with dependencies
+    nodesByLevel.below = nodesByLevel.below.map((node, index) => ({
+      ...node,
+      position: {
+        x: 250 + index * HORIZONTAL_SPACING,
+        y: belowLevelY,
+      },
+    }));
+
+    // Combine all nodes
+    const nodes = [triggerNode, ...nodesByLevel.top, ...nodesByLevel.below];
+
+    // Create edges
+    const edges = [];
+    [...nodesByLevel.top, ...nodesByLevel.below].forEach((node) => {
+      const depends = node.data.config.depends;
+
+      // If no dependencies, connect to trigger
+      if (!depends || depends.length === 0) {
+        edges.push({
+          id: `edge-trigger-1-${node.id}`,
+          source: 'trigger-1',
+          target: node.id,
+        });
+        return;
+      }
+
+      // Create edges for each dependency
+      depends.forEach((sourceName: string) => {
+        const sourceNode = nodes.find((n) => n.data.config.name === sourceName);
+        if (sourceNode) {
+          edges.push({
+            id: `edge-${sourceNode.id}-${node.id}`,
+            source: sourceNode.id,
+            target: node.id,
+          });
+        }
+      });
+    });
+
     return {
       description: config.description || '',
       parameters: parseYamlParams(config.params || []),
@@ -478,10 +642,12 @@ const parseYamlConfig = (yamlContent: string): Partial<WorkflowConfig> => {
         success: config.mailOn?.success || false,
         failure: config.mailOn?.failure || false,
       },
+      nodes,
+      edges,
     };
   } catch (e) {
     console.error('Failed to parse YAML:', e);
-    return {};
+    return { nodes: [], edges: [] };
   }
 };
 
