@@ -17,6 +17,7 @@ import { TriggerNode, ActionNode, ConditionNode } from './nodes';
 import NodeSilhouette from './NodeSilhouette';
 import NodeSelectorModal from './NodeSelectorModal';
 import * as yaml from 'js-yaml';
+import ErrorModal from '../molecules/ErrorModal';
 
 interface NodeData {
   label: string;
@@ -103,11 +104,18 @@ const WorkflowBuilderContent: React.FC<WorkflowBuilderProps> = ({
     },
     schedule: '',
   });
+  const [errorModalVisible, setErrorModalVisible] = React.useState(false);
+  const [errorMessage, setErrorMessage] = React.useState('');
 
   const handleGenerateYaml = () => {
     if (onYamlChange) {
-      const newYaml = generateYamlFromWorkflow(nodes, edges, workflowConfig);
-      onYamlChange(newYaml);
+      try {
+        const newYaml = generateYamlFromWorkflow(nodes, edges, workflowConfig);
+        onYamlChange(newYaml);
+      } catch (error) {
+        setErrorMessage(error.message);
+        setErrorModalVisible(true);
+      }
     }
   };
 
@@ -402,124 +410,131 @@ const WorkflowBuilderContent: React.FC<WorkflowBuilderProps> = ({
   }, []);
 
   return (
-    <Box
-      sx={{
-        display: 'flex',
-        width: '100%',
-        height: 'calc(100vh - 250px)',
-        overflow: 'hidden',
-        position: 'relative',
-      }}
-    >
-      {/* Left side - Workflow Canvas */}
+    <>
       <Box
         sx={{
-          flex: '1 1 80%',
-          height: '100%',
-          bgcolor: 'background.default',
+          display: 'flex',
+          width: '100%',
+          height: 'calc(100vh - 250px)',
+          overflow: 'hidden',
           position: 'relative',
-          borderRight: '1px solid',
-          borderColor: 'divider',
         }}
       >
+        {/* Left side - Workflow Canvas */}
         <Box
           sx={{
-            position: 'absolute',
-            top: 10,
-            right: 10,
-            zIndex: 10,
-            display: 'flex',
-            gap: 1,
+            flex: '1 1 80%',
+            height: '100%',
+            bgcolor: 'background.default',
+            position: 'relative',
+            borderRight: '1px solid',
+            borderColor: 'divider',
           }}
         >
-          <Button
-            variant="contained"
-            size="small"
-            onClick={handleGenerateYaml}
-            sx={{
-              backgroundColor: 'primary.main',
-              color: 'white',
-              '&:hover': {
-                backgroundColor: 'primary.dark',
-              },
-            }}
-          >
-            Generate YAML
-          </Button>
-        </Box>
-        <ReactFlow
-          nodes={nodes}
-          edges={edges}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          nodeTypes={nodeTypes}
-          onNodeClick={handleNodeClick}
-          onPaneClick={handlePaneClick}
-          onConnectStart={onConnectStart}
-          onConnectEnd={onConnectEnd}
-          onPaneMouseMove={onPaneMouseMove}
-          fitView
-          onConnect={onConnect}
-        >
-          <NodeSilhouette
-            position={silhouettePosition}
-            isConnecting={isConnecting}
-          />
-        </ReactFlow>
-        {showInstruction && (
           <Box
             sx={{
               position: 'absolute',
-              bottom: 20,
-              left: '50%',
-              transform: 'translateX(-50%)',
+              top: 10,
+              right: 10,
+              zIndex: 10,
               display: 'flex',
-              alignItems: 'center',
-              pointerEvents: 'none',
-              bgcolor: 'background.paper',
-              px: 3,
-              py: 2,
-              borderRadius: 1,
-              boxShadow: 1,
+              gap: 1,
             }}
           >
-            <Typography variant="body2" color="text.secondary">
-              Click and drag from the output handle to create a new node
-            </Typography>
+            <Button
+              variant="contained"
+              size="small"
+              onClick={handleGenerateYaml}
+              sx={{
+                backgroundColor: 'primary.main',
+                color: 'white',
+                '&:hover': {
+                  backgroundColor: 'primary.dark',
+                },
+              }}
+            >
+              Generate YAML
+            </Button>
           </Box>
-        )}
-      </Box>
+          <ReactFlow
+            nodes={nodes}
+            edges={edges}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            nodeTypes={nodeTypes}
+            onNodeClick={handleNodeClick}
+            onPaneClick={handlePaneClick}
+            onConnectStart={onConnectStart}
+            onConnectEnd={onConnectEnd}
+            onPaneMouseMove={onPaneMouseMove}
+            fitView
+            onConnect={onConnect}
+          >
+            <NodeSilhouette
+              position={silhouettePosition}
+              isConnecting={isConnecting}
+            />
+          </ReactFlow>
+          {showInstruction && (
+            <Box
+              sx={{
+                position: 'absolute',
+                bottom: 20,
+                left: '50%',
+                transform: 'translateX(-50%)',
+                display: 'flex',
+                alignItems: 'center',
+                pointerEvents: 'none',
+                bgcolor: 'background.paper',
+                px: 3,
+                py: 2,
+                borderRadius: 1,
+                boxShadow: 1,
+              }}
+            >
+              <Typography variant="body2" color="text.secondary">
+                Click and drag from the output handle to create a new node
+              </Typography>
+            </Box>
+          )}
+        </Box>
 
-      {/* Right side - Configuration Panel */}
-      <Paper
-        sx={{
-          flex: '0 0 20%',
-          height: '100%',
-          overflow: 'auto',
-        }}
-      >
-        <ConfigPanel
-          selectedNode={selectedNode}
-          workflowConfig={workflowConfig}
-          onWorkflowConfigChange={handleWorkflowConfigChange}
-          onNodeConfigChange={handleNodeConfigChange}
-          nodes={nodes}
-          edges={edges}
-          yamlContent={yamlContent}
-          isEditMode={isEditMode}
+        {/* Right side - Configuration Panel */}
+        <Paper
+          sx={{
+            flex: '0 0 20%',
+            height: '100%',
+            overflow: 'auto',
+          }}
+        >
+          <ConfigPanel
+            selectedNode={selectedNode}
+            workflowConfig={workflowConfig}
+            onWorkflowConfigChange={handleWorkflowConfigChange}
+            onNodeConfigChange={handleNodeConfigChange}
+            nodes={nodes}
+            edges={edges}
+            yamlContent={yamlContent}
+            isEditMode={isEditMode}
+          />
+        </Paper>
+
+        {/* Node Selector Modal */}
+        <NodeSelectorModal
+          open={showNodeSelector}
+          onClose={() => {
+            setShowNodeSelector(false);
+            setPendingConnection(null);
+          }}
+          onSelect={handleNodeSelect}
         />
-      </Paper>
-
-      {/* Node Selector Modal */}
-      <NodeSelectorModal
-        open={showNodeSelector}
-        onClose={() => {
-          setShowNodeSelector(false);
-          setPendingConnection(null);
-        }}
-        onSelect={handleNodeSelect}
+      </Box>
+      <ErrorModal
+        visible={errorModalVisible}
+        message={errorMessage}
+        onClose={() => setErrorModalVisible(false)}
       />
-    </Box>
+    </>
   );
 };
 
@@ -731,6 +746,32 @@ const generateYamlFromWorkflow = (
 ): string => {
   // Get all nodes except the trigger node
   const stepNodes = nodes.filter((node) => node.id !== 'trigger-1');
+
+  // Check for unconfigured nodes
+  const unconfiguredNodes = stepNodes.filter((node) => {
+    if (node.type === 'condition') {
+      // Condition node is configured if it has a name and at least one condition
+      return !(
+        node.data.config?.name &&
+        Object.values(node.data.config?.nextNodes || {}).some(
+          (n: any) => n.precondition?.condition
+        )
+      );
+    } else {
+      // Action node is configured if it has a name and either a script or command
+      return !(
+        node.data.config?.name &&
+        (node.data.config?.script || node.data.config?.command)
+      );
+    }
+  });
+
+  if (unconfiguredNodes.length > 0) {
+    const nodeNames = unconfiguredNodes
+      .map((node) => node.data.config?.name || node.id)
+      .join(', ');
+    throw new Error(`Please configure the following nodes: ${nodeNames}`);
+  }
 
   // Create a map of node IDs to names for dependency resolution
   const nodeIdToName = new Map(
