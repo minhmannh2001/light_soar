@@ -73,13 +73,23 @@ const PythonFileEditor: React.FC = () => {
 
   const handleCreateFile = async () => {
     try {
+      if (!newFileName) {
+        message.error('File name cannot be empty');
+        return;
+      }
+
+      // Add .py extension if not present
+      const fileName = newFileName.endsWith('.py')
+        ? newFileName
+        : `${newFileName}.py`;
+
       await fetchJson(`/python-files`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          name: newFileName,
+          name: fileName,
           content: '',
         }),
       });
@@ -193,7 +203,19 @@ const PythonFileEditor: React.FC = () => {
 
   const renderModalFooter = () => {
     if (!selectedFile) {
-      return undefined; // Default footer for create new file
+      return [
+        <Button key="cancel" onClick={() => setIsModalVisible(false)}>
+          Cancel
+        </Button>,
+        <Button
+          key="create"
+          type="primary"
+          onClick={handleCreateFile}
+          disabled={!newFileName}
+        >
+          Create
+        </Button>,
+      ];
     }
 
     return [
