@@ -556,10 +556,6 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
   );
 };
 
-const VERTICAL_SPACING = 150; // Space between levels
-const HORIZONTAL_SPACING = 200; // Space between nodes horizontally
-
-// Add the YAML parsing utility if not already present
 const parseYamlConfig = (
   yamlContent: string
 ): Partial<WorkflowConfig> & { nodes: any[]; edges: any[] } => {
@@ -582,15 +578,16 @@ const parseYamlConfig = (
       },
     };
 
-    // First, identify nodes with no dependencies (top level nodes)
-    const nodesByLevel = {
-      top: [] as any[],
-      below: [] as any[],
-    };
+    // First, create all regular nodes
+    const nodesMap = new Map();
+    const nodes = [triggerNode];
+    const edges = [];
+    let conditionNodeCounter = 0;
 
+    // Create a map of step name to node
     steps.forEach((step: Step, index: number) => {
       const nodeId = `node-${index + 1}`;
-      const nodeType = step.precondition ? 'condition' : 'action';
+      const nodeType = 'action';
 
       let scriptType = 'bash';
       let command = 'bash';
@@ -629,71 +626,105 @@ const parseYamlConfig = (
               limit: step.retryPolicy?.limit || 2,
               intervalSec: step.retryPolicy?.intervalSec || 5,
             },
-            precondition: step.precondition || null,
           },
         },
       };
 
-      // Categorize nodes based on dependencies
-      if (!step.depends || step.depends.length === 0) {
-        nodesByLevel.top.push(node);
-      } else {
-        nodesByLevel.below.push(node);
-      }
+      nodes.push(node);
+      nodesMap.set(step.name, node);
     });
 
-    // Position nodes by level
-    const topLevelY = triggerNode.position.y + VERTICAL_SPACING;
-    const belowLevelY = topLevelY + VERTICAL_SPACING;
+    // Process dependencies and create edges
+    steps.forEach((step: Step) => {
+      const targetNode = nodesMap.get(step.name);
 
-    // Position top level nodes
-    nodesByLevel.top = nodesByLevel.top.map((node, index) => ({
-      ...node,
-      position: {
-        x: 250 + index * HORIZONTAL_SPACING,
-        y: topLevelY,
-      },
-    }));
-
-    // Position nodes with dependencies
-    nodesByLevel.below = nodesByLevel.below.map((node, index) => ({
-      ...node,
-      position: {
-        x: 250 + index * HORIZONTAL_SPACING,
-        y: belowLevelY,
-      },
-    }));
-
-    // Combine all nodes
-    const nodes = [triggerNode, ...nodesByLevel.top, ...nodesByLevel.below];
-
-    // Create edges
-    const edges = [];
-    [...nodesByLevel.top, ...nodesByLevel.below].forEach((node) => {
-      const depends = node.data.config.depends;
+      if (!targetNode) return;
 
       // If no dependencies, connect to trigger
-      if (!depends || depends.length === 0) {
+      if (!step.depends || step.depends.length === 0) {
         edges.push({
-          id: `edge-trigger-1-${node.id}`,
+          id: `edge-trigger-1-${targetNode.id}`,
           source: 'trigger-1',
-          target: node.id,
+          target: targetNode.id,
         });
         return;
       }
 
-      // Create edges for each dependency
-      depends.forEach((sourceName: string) => {
-        const sourceNode = nodes.find((n) => n.data.config.name === sourceName);
-        if (sourceNode) {
-          edges.push({
-            id: `edge-${sourceNode.id}-${node.id}`,
-            source: sourceNode.id,
-            target: node.id,
-          });
+      // Process each dependency
+      (Array.isArray(step.depends) ? step.depends : [step.depends]).forEach(
+        (sourceName: string) => {
+          const sourceNode = nodesMap.get(sourceName);
+          if (!sourceNode) return;
+
+          // Check if this node has preconditions
+          if (step.preconditions || step.precondition) {
+            const preconditions =
+              step.preconditions ||
+              (step.precondition ? [step.precondition] : []);
+
+            // Create a condition node for each precondition
+            preconditions.forEach((precondition: any) => {
+              conditionNodeCounter++;
+              const conditionNodeId = `condition-${conditionNodeCounter}`;
+
+              // Create condition node
+              const conditionNode = {
+                id: conditionNodeId,
+                type: 'condition',
+                position: { x: 0, y: 0 }, // Position will be set later
+                data: {
+                  label: 'Condition',
+                  type: 'condition',
+                  config: {
+                    name: `Condition ${conditionNodeCounter}`,
+                    nextNodes: {
+                      [targetNode.id]: {
+                        precondition: {
+                          condition:
+                            typeof precondition === 'string'
+                              ? precondition
+                              : precondition.condition || '',
+                          expected:
+                            typeof precondition === 'string'
+                              ? ''
+                              : precondition.expected || '',
+                        },
+                      },
+                    },
+                  },
+                },
+              };
+
+              nodes.push(conditionNode);
+
+              // Create edge from source to condition
+              edges.push({
+                id: `edge-${sourceNode.id}-${conditionNodeId}`,
+                source: sourceNode.id,
+                target: conditionNodeId,
+              });
+
+              // Create edge from condition to target
+              edges.push({
+                id: `edge-${conditionNodeId}-${targetNode.id}`,
+                source: conditionNodeId,
+                target: targetNode.id,
+              });
+            });
+          } else {
+            // No preconditions, create direct edge
+            edges.push({
+              id: `edge-${sourceNode.id}-${targetNode.id}`,
+              source: sourceNode.id,
+              target: targetNode.id,
+            });
+          }
         }
-      });
+      );
     });
+
+    // Position nodes by level
+    positionNodes(nodes, edges);
 
     return {
       description: config.description || '',
@@ -709,6 +740,75 @@ const parseYamlConfig = (
     console.error('Failed to parse YAML:', e);
     return { nodes: [], edges: [] };
   }
+};
+
+// Helper function to position nodes in a visually appealing way
+const positionNodes = (nodes, edges) => {
+  // Create a map of node levels
+  const nodeLevels = new Map();
+  const nodesByLevel = new Map();
+
+  // Set trigger node at level 0
+  const triggerNode = nodes.find((node) => node.type === 'trigger');
+  if (triggerNode) {
+    nodeLevels.set(triggerNode.id, 0);
+    if (!nodesByLevel.has(0)) nodesByLevel.set(0, []);
+    nodesByLevel.get(0).push(triggerNode);
+  }
+
+  // Build a graph of dependencies
+  const graph = new Map();
+  edges.forEach((edge) => {
+    if (!graph.has(edge.source)) {
+      graph.set(edge.source, []);
+    }
+    graph.get(edge.source).push(edge.target);
+  });
+
+  // Perform topological sort to determine node levels
+  const visited = new Set();
+  const assignLevel = (nodeId, level) => {
+    if (visited.has(nodeId)) return;
+    visited.add(nodeId);
+
+    // Assign level to this node
+    const currentLevel = nodeLevels.get(nodeId) || 0;
+    const newLevel = Math.max(currentLevel, level);
+    nodeLevels.set(nodeId, newLevel);
+
+    // Add to nodesByLevel map
+    if (!nodesByLevel.has(newLevel)) nodesByLevel.set(newLevel, []);
+    nodesByLevel.get(newLevel).push(nodes.find((node) => node.id === nodeId));
+
+    // Process children
+    if (graph.has(nodeId)) {
+      graph.get(nodeId).forEach((childId) => {
+        assignLevel(childId, newLevel + 1);
+      });
+    }
+  };
+
+  // Start from trigger node
+  if (triggerNode) {
+    assignLevel(triggerNode.id, 0);
+  }
+
+  // Position nodes by level
+  const VERTICAL_SPACING = 150;
+  const HORIZONTAL_SPACING = 200;
+
+  nodesByLevel.forEach((levelNodes, level) => {
+    const levelY = 50 + level * VERTICAL_SPACING;
+    const levelWidth = levelNodes.length * HORIZONTAL_SPACING;
+    const startX = Math.max(250 - levelWidth / 2, 50);
+
+    levelNodes.forEach((node, index) => {
+      node.position = {
+        x: startX + index * HORIZONTAL_SPACING,
+        y: levelY,
+      };
+    });
+  });
 };
 
 // Add the parameters parsing utility if not already present
