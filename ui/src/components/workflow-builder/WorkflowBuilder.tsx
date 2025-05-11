@@ -669,14 +669,67 @@ const parseYamlConfig = (
     // Create a map of step name to node
     steps.forEach((step: Step, index: number) => {
       const nodeId = `node-${index + 1}`;
-      const nodeType = 'action';
+      let nodeType = 'action';
+      let nodeData: any = {};
 
-      let scriptType = 'bash';
-      let command = 'bash';
-      let script = step.script || '';
+      // Determine node type and prepare node data
+      if (step.run) {
+        // This is a sub-dag node
+        nodeType = 'subdag';
+        nodeData = {
+          name: step.name,
+          description: step.description || '',
+          run: step.run,
+          params: step.params || '',
+          output: step.output || '',
+          depends: step.depends || [],
+          mailOn: {
+            success: step.mailOn?.success || false,
+            failure: step.mailOn?.failure || false,
+          },
+          continueOn: {
+            failure: step.continueOn?.failure || false,
+            skipped: step.continueOn?.skipped || false,
+            markSuccess: step.continueOn?.markSuccess || false,
+          },
+          retryPolicy: {
+            limit: step.retryPolicy?.limit || 2,
+            intervalSec: step.retryPolicy?.intervalSec || 5,
+          },
+        };
+      } else {
+        // This is an action node
+        let scriptType = 'bash';
+        let command = 'bash';
+        let script = step.script || '';
 
-      if (step.command && step.command !== 'bash') {
-        script = step.command;
+        if (step.command && step.command !== 'bash') {
+          script = step.command;
+        }
+
+        nodeData = {
+          name: step.name,
+          description: step.description || '',
+          command: command,
+          output: step.output || '',
+          script: script,
+          scriptType: scriptType,
+          pythonFile: '',
+          depends: step.depends || [],
+          mailOn: {
+            success: step.mailOn?.success || false,
+            failure: step.mailOn?.failure || false,
+          },
+          continueOn: {
+            failure: step.continueOn?.failure || false,
+            skipped: step.continueOn?.skipped || false,
+            markSuccess: step.continueOn?.markSuccess || false,
+          },
+          retryPolicy: {
+            limit: step.retryPolicy?.limit || 2,
+            intervalSec: step.retryPolicy?.intervalSec || 5,
+          },
+        };
       }
 
       const node = {
@@ -686,29 +739,7 @@ const parseYamlConfig = (
         data: {
           label: step.name,
           type: nodeType,
-          config: {
-            name: step.name,
-            description: step.description || '',
-            command: command,
-            output: step.output || '',
-            script: script,
-            scriptType: scriptType,
-            pythonFile: '',
-            depends: step.depends || [],
-            mailOn: {
-              success: step.mailOn?.success || false,
-              failure: step.mailOn?.failure || false,
-            },
-            continueOn: {
-              failure: step.continueOn?.failure || false,
-              skipped: step.continueOn?.skipped || false,
-              markSuccess: step.continueOn?.markSuccess || false,
-            },
-            retryPolicy: {
-              limit: step.retryPolicy?.limit || 2,
-              intervalSec: step.retryPolicy?.intervalSec || 5,
-            },
-          },
+          config: nodeData,
         },
       };
 
@@ -981,6 +1012,9 @@ const generateYamlFromWorkflow = (
           (n: any) => n.precondition?.condition
         )
       );
+    } else if (node.type === 'subdag') {
+      // Sub-dag node is configured if it has a name and a run (target workflow)
+      return !(node.data.config?.name && node.data.config?.run);
     } else {
       // Action node is configured if it has a name and either a script or command
       return !(
@@ -1014,17 +1048,28 @@ const generateYamlFromWorkflow = (
       step.description = config.description;
     }
 
-    // Handle script and command
-    if (config.scriptType === 'bash') {
-      step.command = 'bash';
-      if (config.script) {
-        step.script = config.script;
+    // Handle different node types
+    if (node.type === 'subdag') {
+      // Handle sub-dag node
+      if (config.run) {
+        step.run = config.run;
+        if (config.params) {
+          step.params = config.params;
+        }
       }
-    } else if (config.scriptType === 'python') {
-      step.command = 'python';
-      if (config.pythonFile) {
-        // Handle Python file selection
-        step.script = config.pythonFile;
+    } else {
+      // Handle action node
+      if (config.scriptType === 'bash') {
+        step.command = 'bash';
+        if (config.script) {
+          step.script = config.script;
+        }
+      } else if (config.scriptType === 'python') {
+        step.command = 'python';
+        if (config.pythonFile) {
+          // Handle Python file selection
+          step.script = config.pythonFile;
+        }
       }
     }
 
@@ -1038,8 +1083,14 @@ const generateYamlFromWorkflow = (
 
     // Add existing dependencies
     if (config.depends && config.depends.length > 0) {
-      config.depends.forEach((dependName) => {
-        dependencies.add(dependName);
+      config.depends.forEach((id) => {
+        const name = nodeIdToName.get(id);
+        if (name) dependencies.add(name);
+        else {
+          if (id in nodeIdToName.values()) {
+            dependencies.add(id);
+          }
+        }
       });
     }
 

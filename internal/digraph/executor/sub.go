@@ -62,13 +62,13 @@ func newSubWorkflow(
 
 	args := []string{
 		"start",
-		fmt.Sprintf("--requestID=%s", requestID),
+		fmt.Sprintf("--req=%s", requestID),
 		"--quiet",
 		subDAG.Location,
 	}
 
 	if config.Params != "" {
-		args = append(args, "--")
+		args = append(args, "--params")
 		args = append(args, config.Params)
 	}
 
