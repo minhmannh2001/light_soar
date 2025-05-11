@@ -747,6 +747,47 @@ const generateYamlFromWorkflow = (
   // Get all nodes except the trigger node
   const stepNodes = nodes.filter((node) => node.id !== 'trigger-1');
 
+  // Separate condition nodes and regular nodes
+  const conditionNodes = stepNodes.filter((node) => node.type === 'condition');
+  const regularNodes = stepNodes.filter((node) => node.type !== 'condition');
+
+  // Create maps for edges
+  const outgoingEdges = new Map();
+  const incomingEdges = new Map();
+
+  edges.forEach((edge) => {
+    // Outgoing edges
+    if (!outgoingEdges.has(edge.source)) {
+      outgoingEdges.set(edge.source, []);
+    }
+    outgoingEdges.get(edge.source).push(edge);
+
+    // Incoming edges
+    if (!incomingEdges.has(edge.target)) {
+      incomingEdges.set(edge.target, []);
+    }
+    incomingEdges.get(edge.target).push(edge);
+  });
+
+  // Create a map to track condition node sources
+  const conditionSourceMap = new Map();
+
+  // Find the source node for each condition node
+  conditionNodes.forEach((conditionNode) => {
+    if (incomingEdges.has(conditionNode.id)) {
+      const sourceEdges = incomingEdges.get(conditionNode.id);
+      // Get the first regular node that points to this condition
+      const sourceEdge = sourceEdges.find((edge) => {
+        const sourceNode = nodes.find((n) => n.id === edge.source);
+        return sourceNode && sourceNode.type !== 'condition';
+      });
+
+      if (sourceEdge) {
+        conditionSourceMap.set(conditionNode.id, sourceEdge.source);
+      }
+    }
+  });
+
   // Check for unconfigured nodes
   const unconfiguredNodes = stepNodes.filter((node) => {
     if (node.type === 'condition') {
@@ -775,11 +816,11 @@ const generateYamlFromWorkflow = (
 
   // Create a map of node IDs to names for dependency resolution
   const nodeIdToName = new Map(
-    stepNodes.map((node) => [node.id, node.data.config.name])
+    regularNodes.map((node) => [node.id, node.data.config.name])
   );
 
   // Convert nodes to steps format
-  const steps = stepNodes.map((node) => {
+  const steps = regularNodes.map((node) => {
     const config = node.data.config;
     const step: any = {
       name: config.name,
@@ -809,11 +850,49 @@ const generateYamlFromWorkflow = (
       step.output = config.output;
     }
 
-    // Convert node IDs to node names in depends array
+    // Process dependencies
+    const dependencies = new Set<string>();
+
+    // Add existing dependencies
     if (config.depends && config.depends.length > 0) {
-      step.depends = config.depends
-        .map((id) => nodeIdToName.get(id))
-        .filter((name) => name !== undefined);
+      config.depends.forEach((id) => {
+        const name = nodeIdToName.get(id);
+        if (name) dependencies.add(name);
+      });
+    }
+
+    // Check if this node is a target of any condition node
+    conditionNodes.forEach((conditionNode) => {
+      if (outgoingEdges.has(conditionNode.id)) {
+        outgoingEdges.get(conditionNode.id).forEach((edge) => {
+          if (edge.target === node.id) {
+            // Add the condition's source node as a dependency
+            const sourceNodeId = conditionSourceMap.get(conditionNode.id);
+            if (sourceNodeId) {
+              const sourceName = nodeIdToName.get(sourceNodeId);
+              if (sourceName) dependencies.add(sourceName);
+            }
+
+            // Add precondition if it exists
+            if (conditionNode.data.config?.nextNodes?.[node.id]?.precondition) {
+              const precondition =
+                conditionNode.data.config.nextNodes[node.id].precondition;
+              if (!step.preconditions) {
+                step.preconditions = [];
+              }
+              step.preconditions.push({
+                condition: precondition.condition,
+                expected: precondition.expected || '',
+              });
+            }
+          }
+        });
+      }
+    });
+
+    // Add dependencies to step
+    if (dependencies.size > 0) {
+      step.depends = Array.from(dependencies);
     }
 
     // Add retry policy if present
