@@ -155,6 +155,7 @@ const WorkflowBuilderContent: React.FC<WorkflowBuilderProps> = ({
     sourceNodeId: string;
     sourceHandleId: string | null;
     position: XYPosition;
+    sourceNodeType?: string;
   } | null>(null);
 
   const handleNodeClick = (event: React.MouseEvent, node: Node) => {
@@ -278,32 +279,42 @@ const WorkflowBuilderContent: React.FC<WorkflowBuilderProps> = ({
     [isConnecting]
   );
 
-  const onConnectEnd = useCallback((event: MouseEvent | TouchEvent) => {
-    event.preventDefault();
-    event.stopPropagation();
+  const onConnectEnd = useCallback(
+    (event: MouseEvent) => {
+      if (!connectingNodeId.current) return;
 
-    if (!connectingNodeId.current) return;
+      const targetIsPane = (event.target as Element).classList.contains(
+        'react-flow__pane'
+      );
 
-    const targetIsPane = (event?.target as HTMLElement)?.classList.contains(
-      'react-flow__pane'
-    );
+      if (targetIsPane) {
+        // Get the source node type
+        const sourceNode = nodes.find(
+          (node) => node.id === connectingNodeId.current
+        );
+        const sourceNodeType = sourceNode?.type || '';
 
-    if (targetIsPane) {
-      const x = (event as MouseEvent).clientX;
-      const y = (event as MouseEvent).clientY;
+        // Set pending connection with source node type
+        setPendingConnection({
+          sourceNodeId: connectingNodeId.current,
+          sourceHandleId: connectingHandleId.current,
+          position: project({
+            x: event.clientX,
+            y: event.clientY,
+          }),
+          sourceNodeType, // Add source node type
+        });
 
-      setPendingConnection({
-        sourceNodeId: connectingNodeId.current,
-        sourceHandleId: connectingHandleId.current,
-        position: { x, y },
-      });
-      setShowNodeSelector(true);
-    }
+        setShowNodeSelector(true);
+      }
 
-    connectingHandleId.current = null;
-    setSilhouettePosition(null);
-    setIsConnecting(false);
-  }, []);
+      setIsConnecting(false);
+      setSilhouettePosition(null);
+      connectingNodeId.current = null;
+      connectingHandleId.current = null;
+    },
+    [project, nodes]
+  );
 
   const handleNodeSelect = useCallback(
     (type: string) => {
@@ -527,6 +538,7 @@ const WorkflowBuilderContent: React.FC<WorkflowBuilderProps> = ({
             setPendingConnection(null);
           }}
           onSelect={handleNodeSelect}
+          sourceNodeType={pendingConnection?.sourceNodeType}
         />
       </Box>
       <ErrorModal
