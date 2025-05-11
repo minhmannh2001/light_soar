@@ -1012,9 +1012,8 @@ const generateYamlFromWorkflow = (
 
     // Add existing dependencies
     if (config.depends && config.depends.length > 0) {
-      config.depends.forEach((id) => {
-        const name = nodeIdToName.get(id);
-        if (name) dependencies.add(name);
+      config.depends.forEach((dependName) => {
+        dependencies.add(dependName);
       });
     }
 
