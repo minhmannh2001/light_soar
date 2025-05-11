@@ -1,5 +1,16 @@
 import React, { useCallback, useRef, useState } from 'react';
-import { Box, Paper, Typography, Button } from '@mui/material';
+import {
+  Box,
+  Paper,
+  Typography,
+  Button,
+  Menu,
+  MenuItem,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+} from '@mui/material';
 import ReactFlow, {
   Node,
   Edge,
@@ -10,6 +21,7 @@ import ReactFlow, {
   useReactFlow,
   ReactFlowProvider,
   Connection,
+  NodeMouseHandler,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import ConfigPanel from './ConfigPanel';
@@ -130,6 +142,19 @@ const WorkflowBuilderContent: React.FC<WorkflowBuilderProps> = ({
   });
   const [errorModalVisible, setErrorModalVisible] = React.useState(false);
   const [errorMessage, setErrorMessage] = React.useState('');
+
+  // Add context menu state
+  const [contextMenu, setContextMenu] = useState<{
+    mouseX: number;
+    mouseY: number;
+    nodeId: string;
+  } | null>(null);
+
+  // New state for confirmation dialog
+  const [confirmDialog, setConfirmDialog] = useState<{
+    open: boolean;
+    nodeId: string;
+  } | null>(null);
 
   const handleGenerateYaml = () => {
     if (onYamlChange) {
@@ -470,6 +495,85 @@ const WorkflowBuilderContent: React.FC<WorkflowBuilderProps> = ({
     );
   }, []);
 
+  // Handle right-click on node
+  const onNodeContextMenu: NodeMouseHandler = useCallback((event, node) => {
+    // Prevent default browser context menu
+    event.preventDefault();
+
+    // Set context menu position and node ID
+    setContextMenu({
+      mouseX: event.clientX,
+      mouseY: event.clientY,
+      nodeId: node.id,
+    });
+  }, []);
+
+  // Close context menu
+  const handleCloseContextMenu = () => {
+    setContextMenu(null);
+  };
+
+  // Open confirmation dialog for node removal
+  const handleRemoveNodeClick = () => {
+    if (contextMenu) {
+      const nodeId = contextMenu.nodeId;
+
+      // Check if this is a trigger node (which should not be removable)
+      if (nodeId.startsWith('trigger-')) {
+        setErrorMessage('The trigger node cannot be removed.');
+        setErrorModalVisible(true);
+        handleCloseContextMenu();
+        return;
+      }
+
+      // Check if this is an internal node (has outgoing edges)
+      const hasOutgoingEdges = edges.some((edge) => edge.source === nodeId);
+
+      if (hasOutgoingEdges) {
+        setErrorMessage(
+          'Currently, our system only supports removing leaf nodes (nodes without outgoing connections). Internal nodes cannot be removed at this time.'
+        );
+        setErrorModalVisible(true);
+        handleCloseContextMenu();
+        return;
+      }
+
+      // If it's a leaf node, proceed with confirmation dialog
+      setConfirmDialog({
+        open: true,
+        nodeId: nodeId,
+      });
+      handleCloseContextMenu();
+    }
+  };
+
+  // Close confirmation dialog
+  const handleCloseConfirmDialog = () => {
+    setConfirmDialog(null);
+  };
+
+  // Remove node and its connected edges
+  const handleConfirmRemove = () => {
+    if (confirmDialog) {
+      const nodeId = confirmDialog.nodeId;
+
+      // Remove all edges connected to this node (should only be incoming edges for leaf nodes)
+      setEdges((eds) =>
+        eds.filter((edge) => edge.source !== nodeId && edge.target !== nodeId)
+      );
+
+      // Remove the node
+      setNodes((nds) => nds.filter((node) => node.id !== nodeId));
+
+      // If the selected node is being removed, clear the selection
+      if (selectedNode && selectedNode.id === nodeId) {
+        setSelectedNode(null);
+      }
+
+      handleCloseConfirmDialog();
+    }
+  };
+
   return (
     <>
       <Box
@@ -530,6 +634,7 @@ const WorkflowBuilderContent: React.FC<WorkflowBuilderProps> = ({
             onPaneMouseMove={onPaneMouseMove}
             fitView
             onConnect={onConnect}
+            onNodeContextMenu={onNodeContextMenu}
           >
             <NodeSilhouette
               position={silhouettePosition}
@@ -596,6 +701,38 @@ const WorkflowBuilderContent: React.FC<WorkflowBuilderProps> = ({
         message={errorMessage}
         onClose={() => setErrorModalVisible(false)}
       />
+      {/* Context Menu */}
+      <Menu
+        open={contextMenu !== null}
+        onClose={handleCloseContextMenu}
+        anchorReference="anchorPosition"
+        anchorPosition={
+          contextMenu !== null
+            ? { top: contextMenu.mouseY, left: contextMenu.mouseX }
+            : undefined
+        }
+      >
+        <MenuItem onClick={handleRemoveNodeClick}>Remove</MenuItem>
+      </Menu>
+      {/* Confirmation Dialog */}
+      <Dialog
+        open={confirmDialog !== null && confirmDialog.open}
+        onClose={handleCloseConfirmDialog}
+      >
+        <DialogTitle>Confirm Removal</DialogTitle>
+        <DialogContent>
+          <Typography>
+            Are you sure you want to remove this node? This will also remove all
+            connected edges.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseConfirmDialog}>Cancel</Button>
+          <Button onClick={handleConfirmRemove} color="error">
+            Remove
+          </Button>
+        </DialogActions>
+      </Dialog>
     </>
   );
 };
