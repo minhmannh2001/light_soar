@@ -1,38 +1,49 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Box,
-  TextField,
   Typography,
-  Tooltip,
-  Stack,
+  TextField,
+  Button,
+  Divider,
+  FormControlLabel,
+  Switch,
+  IconButton,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
+  List,
+  ListItem,
+  ListItemText,
+  Paper,
+  TableContainer,
+  Table,
+  TableHead,
+  TableBody,
+  TableRow,
+  TableCell,
   FormControl,
   InputLabel,
   Select,
   MenuItem,
-  IconButton,
-  Button,
-  InputAdornment,
   FormGroup,
-  FormControlLabel,
-  Switch,
-  SxProps,
-  Theme,
-  Paper,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
 } from '@mui/material';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import DeleteIcon from '@mui/icons-material/Delete';
+import AddIcon from '@mui/icons-material/Add';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faArrowLeft, faCopy } from '@fortawesome/free-solid-svg-icons';
-import DeleteIcon from '@mui/icons-material/Delete';
 import * as yaml from 'js-yaml';
+import { SxProps, Theme } from '@mui/material/styles';
+import { useConfig } from '../../contexts/ConfigContext';
 
 interface Parameter {
   name: string;
   defaultValue: string;
+}
+
+interface EnvironmentVariable {
+  name: string;
+  value: string;
 }
 
 interface WorkflowConfig {
@@ -43,6 +54,7 @@ interface WorkflowConfig {
     success: boolean;
     failure: boolean;
   };
+  env: EnvironmentVariable[];
   isEditMode?: boolean; // Add this to track edit mode
 }
 
@@ -175,6 +187,27 @@ const parseYamlParams = (
 const parseYamlConfig = (yamlContent: string): Partial<WorkflowConfig> => {
   try {
     const config = yaml.load(yamlContent) as any;
+
+    // Parse environment variables
+    let env: EnvironmentVariable[] = [];
+    if (config.env) {
+      if (Array.isArray(config.env)) {
+        // Handle array of objects format: [{ KEY: "value" }, { KEY2: "value2" }]
+        config.env.forEach((envVar: any) => {
+          if (typeof envVar === 'object') {
+            Object.entries(envVar).forEach(([name, value]) => {
+              env.push({ name, value: String(value) });
+            });
+          }
+        });
+      } else if (typeof config.env === 'object') {
+        // Handle object format: { KEY: "value", KEY2: "value2" }
+        Object.entries(config.env).forEach(([name, value]) => {
+          env.push({ name, value: String(value) });
+        });
+      }
+    }
+
     return {
       description: config.description || '',
       parameters: parseYamlParams(config.params || []),
@@ -182,6 +215,7 @@ const parseYamlConfig = (yamlContent: string): Partial<WorkflowConfig> => {
         success: config.mailOn?.success || false,
         failure: config.mailOn?.failure || false,
       },
+      env: env,
     };
   } catch (e) {
     console.error('Failed to parse YAML:', e);
@@ -310,6 +344,108 @@ const ActionNodePanel: React.FC<{
         sx={{ mb: 2 }}
       />
     </>
+  );
+};
+
+const EnvironmentVariablesEditor: React.FC<{
+  env: EnvironmentVariable[];
+  onChange: (env: EnvironmentVariable[]) => void;
+}> = ({ env, onChange }) => {
+  const [newVarName, setNewVarName] = useState('');
+  const [newVarValue, setNewVarValue] = useState('');
+
+  const handleAddVariable = () => {
+    if (newVarName.trim() === '') return;
+
+    onChange([...env, { name: newVarName, value: newVarValue }]);
+    setNewVarName('');
+    setNewVarValue('');
+  };
+
+  const handleRemoveVariable = (index: number) => {
+    const newEnv = [...env];
+    newEnv.splice(index, 1);
+    onChange(newEnv);
+  };
+
+  const handleUpdateVariable = (
+    index: number,
+    field: 'name' | 'value',
+    value: string
+  ) => {
+    const newEnv = [...env];
+    newEnv[index][field] = value;
+    onChange(newEnv);
+  };
+
+  return (
+    <Box>
+      <Typography variant="subtitle2" gutterBottom>
+        Environment Variables
+      </Typography>
+
+      <List dense>
+        {env.map((variable, index) => (
+          <ListItem
+            key={index}
+            secondaryAction={
+              <IconButton
+                edge="end"
+                onClick={() => handleRemoveVariable(index)}
+              >
+                <DeleteIcon fontSize="small" />
+              </IconButton>
+            }
+          >
+            <Box sx={{ display: 'flex', width: '100%', gap: 1 }}>
+              <TextField
+                size="small"
+                label="Name"
+                value={variable.name}
+                onChange={(e) =>
+                  handleUpdateVariable(index, 'name', e.target.value)
+                }
+                sx={{ flex: 1 }}
+              />
+              <TextField
+                size="small"
+                label="Value"
+                value={variable.value}
+                onChange={(e) =>
+                  handleUpdateVariable(index, 'value', e.target.value)
+                }
+                sx={{ flex: 1 }}
+              />
+            </Box>
+          </ListItem>
+        ))}
+      </List>
+
+      <Box sx={{ display: 'flex', mt: 1, gap: 1 }}>
+        <TextField
+          size="small"
+          label="Name"
+          value={newVarName}
+          onChange={(e) => setNewVarName(e.target.value)}
+          sx={{ flex: 1 }}
+        />
+        <TextField
+          size="small"
+          label="Value"
+          value={newVarValue}
+          onChange={(e) => setNewVarValue(e.target.value)}
+          sx={{ flex: 1 }}
+        />
+        <Button
+          variant="outlined"
+          size="small"
+          startIcon={<AddIcon />}
+          onClick={handleAddVariable}
+        >
+          Add
+        </Button>
+      </Box>
+    </Box>
   );
 };
 
@@ -463,6 +599,85 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({
             sx={{ mt: 1 }}
           >
             Add Parameter
+          </Button>
+        </TableContainer>
+
+        {/* Environment Variables Section */}
+        <Typography variant="subtitle1" sx={{ mb: 1 }}>
+          Environment Variables
+        </Typography>
+
+        <TableContainer component={Paper} sx={{ mb: 2 }}>
+          <Table size="small">
+            <TableHead>
+              <TableRow>
+                <TableCell>Name</TableCell>
+                <TableCell>Value</TableCell>
+                <TableCell width={50}></TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {(workflowConfig.env || []).map((envVar, index) => (
+                <TableRow key={index}>
+                  <TableCell>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      value={envVar.name}
+                      onChange={(e) => {
+                        const newEnv = [...workflowConfig.env];
+                        newEnv[index].name = e.target.value;
+                        onWorkflowConfigChange('env', newEnv);
+                      }}
+                      error={envVar.name !== '' && !isValidName(envVar.name)}
+                      helperText={
+                        envVar.name !== '' && !isValidName(envVar.name)
+                          ? 'Name cannot contain spaces'
+                          : ''
+                      }
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      value={envVar.value}
+                      onChange={(e) => {
+                        const newEnv = [...workflowConfig.env];
+                        newEnv[index].value = e.target.value;
+                        onWorkflowConfigChange('env', newEnv);
+                      }}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <IconButton
+                      size="small"
+                      onClick={() => {
+                        const newEnv = workflowConfig.env.filter(
+                          (_, i) => i !== index
+                        );
+                        onWorkflowConfigChange('env', newEnv);
+                      }}
+                    >
+                      <DeleteIcon />
+                    </IconButton>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+          <Button
+            fullWidth
+            onClick={() => {
+              const newEnv = [
+                ...(workflowConfig.env || []),
+                { name: '', value: '' },
+              ];
+              onWorkflowConfigChange('env', newEnv);
+            }}
+            sx={{ mt: 1 }}
+          >
+            Add Environment Variable
           </Button>
         </TableContainer>
 

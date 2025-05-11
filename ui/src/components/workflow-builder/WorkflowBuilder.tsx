@@ -77,6 +77,28 @@ interface Step {
   };
 }
 
+// Update the WorkflowConfig interface to include environment variables
+interface WorkflowConfig {
+  name: string;
+  description: string;
+  timeoutSec: number;
+  delaySec: number;
+  histRetentionDays: number;
+  parameters: Parameter[];
+  mailOn: {
+    success: boolean;
+    failure: boolean;
+  };
+  schedule: string;
+  env: EnvironmentVariable[]; // Add environment variables
+}
+
+// Add an interface for environment variables
+interface EnvironmentVariable {
+  name: string;
+  value: string;
+}
+
 const WorkflowBuilderContent: React.FC<WorkflowBuilderProps> = ({
   yamlContent,
   dagName,
@@ -103,6 +125,7 @@ const WorkflowBuilderContent: React.FC<WorkflowBuilderProps> = ({
       failure: false,
     },
     schedule: '',
+    env: [], // Initialize empty environment variables array
   });
   const [errorModalVisible, setErrorModalVisible] = React.useState(false);
   const [errorMessage, setErrorMessage] = React.useState('');
@@ -130,6 +153,7 @@ const WorkflowBuilderContent: React.FC<WorkflowBuilderProps> = ({
         description: config.description || prev.description,
         parameters: config.parameters || prev.parameters,
         mailOn: config.mailOn || prev.mailOn,
+        env: config.env || prev.env, // Add environment variables
       }));
 
       // Set nodes and edges from the parsed YAML
@@ -575,6 +599,26 @@ const parseYamlConfig = (
     const config = yaml.load(yamlContent) as any;
     const steps = config.steps || [];
 
+    // Parse environment variables
+    const env: EnvironmentVariable[] = [];
+    if (config.env) {
+      if (Array.isArray(config.env)) {
+        // Handle array of objects format: [{ KEY: "value" }, { KEY2: "value2" }]
+        config.env.forEach((envVar: any) => {
+          if (typeof envVar === 'object') {
+            Object.entries(envVar).forEach(([name, value]) => {
+              env.push({ name, value: String(value) });
+            });
+          }
+        });
+      } else if (typeof config.env === 'object') {
+        // Handle object format: { KEY: "value", KEY2: "value2" }
+        Object.entries(config.env).forEach(([name, value]) => {
+          env.push({ name, value: String(value) });
+        });
+      }
+    }
+
     // Create trigger node at the top
     const triggerNode = {
       id: 'trigger-1',
@@ -745,6 +789,7 @@ const parseYamlConfig = (
         success: config.mailOn?.success || false,
         failure: config.mailOn?.failure || false,
       },
+      env, // Add parsed environment variables
       nodes,
       edges,
     };
@@ -1051,6 +1096,13 @@ const generateYamlFromWorkflow = (
   // Add schedule only if it's not empty
   if (workflowConfig.schedule) {
     yamlStructure.schedule = workflowConfig.schedule;
+  }
+
+  // Add environment variables if present
+  if (workflowConfig.env && workflowConfig.env.length > 0) {
+    yamlStructure.env = workflowConfig.env.map((env: EnvironmentVariable) => {
+      return { [env.name]: env.value };
+    });
   }
 
   // Add parameters if present
