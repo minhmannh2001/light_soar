@@ -13,14 +13,18 @@ import {
   Alert,
 } from '@mui/material';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faCode, faCodeBranch } from '@fortawesome/free-solid-svg-icons';
+import {
+  faCode,
+  faCodeBranch,
+  faDiagramProject,
+} from '@fortawesome/free-solid-svg-icons';
 import CloseIcon from '@mui/icons-material/Close';
 
 interface NodeSelectorModalProps {
   open: boolean;
   onClose: () => void;
   onSelect: (type: string) => void;
-  sourceNodeType?: string; // Add source node type prop
+  sourceNodeType?: string;
 }
 
 const nodeTypes = [
@@ -35,6 +39,12 @@ const nodeTypes = [
     label: 'Condition Node',
     icon: faCodeBranch,
     description: 'Add conditional branching',
+  },
+  {
+    type: 'subdag',
+    label: 'Sub DAG Node',
+    icon: faDiagramProject,
+    description: 'Run another workflow as a step',
   },
 ];
 

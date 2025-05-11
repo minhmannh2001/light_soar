@@ -26,6 +26,7 @@ import {
   Select,
   MenuItem,
   FormGroup,
+  CircularProgress,
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -35,6 +36,7 @@ import { faArrowLeft, faCopy } from '@fortawesome/free-solid-svg-icons';
 import * as yaml from 'js-yaml';
 import { SxProps, Theme } from '@mui/material/styles';
 import { useConfig } from '../../contexts/ConfigContext';
+import { AppBarContext } from '../../contexts/AppBarContext';
 
 interface Parameter {
   name: string;
@@ -113,6 +115,34 @@ interface ConditionNodeConfig {
   };
 }
 
+interface SubDagNodeConfig {
+  // Basic Info
+  name: string;
+  description?: string;
+  run: string; // The sub-workflow to run
+  params?: string; // Parameters to pass to the sub-workflow
+  output?: string; // Variable name to store output
+
+  // Retry Settings
+  retryPolicy?: {
+    limit: number;
+    intervalSec: number;
+  };
+
+  // Error Handling
+  continueOn?: {
+    failure: boolean;
+    skipped: boolean;
+    markSuccess: boolean;
+  };
+
+  // Mail Notifications
+  mailOn?: {
+    failure: boolean;
+    success: boolean;
+  };
+}
+
 interface ConfigPanelProps {
   selectedNode: {
     id: string;
@@ -136,6 +166,11 @@ interface ActionConfigPanelProps {
 interface PythonFile {
   name: string;
   content: string;
+}
+
+interface SubDagParameter {
+  name: string;
+  defaultValue: string;
 }
 
 const commonStyles: SxProps<Theme> = {
@@ -446,6 +481,350 @@ const EnvironmentVariablesEditor: React.FC<{
         </Button>
       </Box>
     </Box>
+  );
+};
+
+const SubDagNodePanel: React.FC<{
+  config: SubDagNodeConfig;
+  onChange: (field: string, value: any) => void;
+}> = ({ config, onChange }) => {
+  const appConfig = useConfig();
+  const appBarContext = React.useContext(AppBarContext);
+  const [isLoading, setIsLoading] = React.useState(false);
+  const [dags, setDags] = React.useState<Array<any>>([]);
+  const [subDagParameters, setSubDagParameters] = React.useState<
+    SubDagParameter[]
+  >([]);
+  const [isLoadingParams, setIsLoadingParams] = React.useState(false);
+
+  // Fetch available DAGs using the same API as the DAGs page
+  const fetchDags = React.useCallback(async () => {
+    try {
+      setIsLoading(true);
+      // Fix: Extract the DAG name correctly from the URL path
+      const pathParts = window.location.pathname.split('/');
+      const editIndex = pathParts.indexOf('edit');
+      const currentDagName = editIndex > 0 ? pathParts[editIndex - 1] : '';
+
+      const response = await fetch(
+        `${
+          appConfig.apiURL
+        }/dags?page=1&limit=50&searchName=&searchTag=&remoteNode=${
+          appBarContext.selectedRemoteNode || 'local'
+        }`
+      );
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch DAGs');
+      }
+
+      const data = await response.json();
+
+      // Extract DAGs from the response and filter out the current DAG
+      let availableDags: any[] = [];
+      if (data && data.DAGs) {
+        for (const val of data.DAGs) {
+          if (!val.Error && val.DAG && val.DAG.Name !== currentDagName) {
+            availableDags.push({
+              name: val.DAG.Name,
+              location: val.DAG.Location,
+            });
+          }
+        }
+      }
+
+      setDags(availableDags);
+    } catch (error) {
+      console.error('Error fetching DAGs:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [appConfig, appBarContext.selectedRemoteNode]);
+
+  // Fetch parameters for the selected DAG
+  const fetchDagParameters = React.useCallback(
+    async (dagName: string) => {
+      if (!dagName) return;
+
+      try {
+        setIsLoadingParams(true);
+        const response = await fetch(
+          `${appConfig.apiURL}/dags/${dagName}?tab=spec&remoteNode=${
+            appBarContext.selectedRemoteNode || 'local'
+          }`
+        );
+
+        if (!response.ok) {
+          throw new Error(`Failed to fetch DAG details for ${dagName}`);
+        }
+
+        const data = await response.json();
+
+        // Parse parameters from the DAG's YAML content
+        if (data.Definition) {
+          try {
+            const dagConfig = yaml.load(data.Definition) as any;
+
+            // Extract parameters from the DAG
+            let parameters: SubDagParameter[] = [];
+
+            if (dagConfig.params) {
+              if (typeof dagConfig.params === 'string') {
+                // Handle string format: "param1 param2"
+                const paramNames = dagConfig.params.split(' ').filter(Boolean);
+                parameters = paramNames.map((name) => ({
+                  name,
+                  defaultValue: '',
+                }));
+              } else if (Array.isArray(dagConfig.params)) {
+                // Handle array format: [{ NAME: "value" }, { NAME2: "value2" }]
+                parameters = dagConfig.params.map((param: any) => {
+                  const [name, value] = Object.entries(param)[0];
+                  return {
+                    name: String(name),
+                    defaultValue: String(value),
+                  };
+                });
+              }
+            }
+
+            setSubDagParameters(parameters);
+
+            // Update the params field with the current values
+            updateParamsField(parameters);
+          } catch (error) {
+            console.error('Error parsing DAG YAML:', error);
+          }
+        }
+      } catch (error) {
+        console.error(`Error fetching DAG parameters for ${dagName}:`, error);
+      } finally {
+        setIsLoadingParams(false);
+      }
+    },
+    [appConfig, appBarContext.selectedRemoteNode]
+  );
+
+  // Update the params field when parameters change
+  const updateParamsField = (parameters: SubDagParameter[]) => {
+    const paramsString = parameters
+      .map((param) => `${param.name}=${param.defaultValue}`)
+      .join(' ');
+
+    onChange('params', paramsString);
+  };
+
+  // Handle parameter value change
+  const handleParameterValueChange = (index: number, value: string) => {
+    const updatedParams = [...subDagParameters];
+    updatedParams[index].defaultValue = value;
+    setSubDagParameters(updatedParams);
+    updateParamsField(updatedParams);
+  };
+
+  // Effect to fetch DAGs on mount
+  React.useEffect(() => {
+    fetchDags();
+  }, [fetchDags]);
+
+  // Effect to fetch parameters when DAG selection changes
+  React.useEffect(() => {
+    if (config.run) {
+      fetchDagParameters(config.run);
+    } else {
+      setSubDagParameters([]);
+    }
+  }, [config.run, fetchDagParameters]);
+
+  return (
+    <>
+      <TextField
+        fullWidth
+        required
+        label="Step Name"
+        value={config.name || ''}
+        onChange={(e) => onChange('name', e.target.value)}
+        error={!config.name}
+        helperText={!config.name ? 'Step name is required' : ''}
+        sx={{ mb: 2 }}
+      />
+
+      <TextField
+        fullWidth
+        multiline
+        rows={2}
+        label="Description"
+        value={config.description || ''}
+        onChange={(e) => onChange('description', e.target.value)}
+        sx={{ mb: 2 }}
+      />
+
+      <FormControl fullWidth sx={{ mb: 2 }}>
+        <InputLabel>Sub Workflow</InputLabel>
+        <Select
+          value={config.run || ''}
+          onChange={(e) => onChange('run', e.target.value)}
+          label="Sub Workflow"
+          disabled={isLoading}
+        >
+          {isLoading ? (
+            <MenuItem disabled>Loading...</MenuItem>
+          ) : dags.length > 0 ? (
+            dags.map((dag) => (
+              <MenuItem key={dag.location} value={dag.name}>
+                {dag.name}
+              </MenuItem>
+            ))
+          ) : (
+            <MenuItem disabled>No DAGs available</MenuItem>
+          )}
+        </Select>
+      </FormControl>
+
+      {/* Parameters Table */}
+      {config.run && (
+        <>
+          <Typography variant="subtitle1" sx={{ mb: 1 }}>
+            Parameters
+          </Typography>
+
+          {isLoadingParams ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', my: 2 }}>
+              <CircularProgress size={24} />
+            </Box>
+          ) : subDagParameters.length > 0 ? (
+            <TableContainer component={Paper} sx={{ mb: 2 }}>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Name</TableCell>
+                    <TableCell>Value</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {subDagParameters.map((param, index) => (
+                    <TableRow key={`param-${param.name}-${index}`}>
+                      <TableCell>
+                        <Typography variant="body2">{param.name}</Typography>
+                      </TableCell>
+                      <TableCell>
+                        <TextField
+                          fullWidth
+                          size="small"
+                          value={param.defaultValue}
+                          onChange={(e) =>
+                            handleParameterValueChange(index, e.target.value)
+                          }
+                        />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          ) : (
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              No parameters defined in the selected workflow.
+            </Typography>
+          )}
+        </>
+      )}
+
+      <TextField
+        fullWidth
+        label="Output Variable"
+        value={config.output || ''}
+        onChange={(e) => onChange('output', e.target.value)}
+        helperText="Variable name to store output of this sub-workflow"
+        sx={{ mb: 2 }}
+      />
+
+      {/* Retry Policy */}
+      <Typography variant="subtitle1" sx={{ mb: 1 }}>
+        Retry Policy
+      </Typography>
+      <Box sx={{ mb: 3 }}>
+        <Box sx={{ display: 'flex', gap: 2 }}>
+          <TextField
+            type="number"
+            label="Retry Limit"
+            value={config.retryPolicy?.limit ?? 2}
+            onChange={(e) =>
+              onChange('retryPolicy.limit', parseInt(e.target.value))
+            }
+          />
+          <TextField
+            type="number"
+            label="Interval (sec)"
+            value={config.retryPolicy?.intervalSec ?? 5}
+            onChange={(e) =>
+              onChange('retryPolicy.intervalSec', parseInt(e.target.value))
+            }
+          />
+        </Box>
+      </Box>
+
+      {/* Continue On */}
+      <Typography variant="subtitle1" sx={{ mb: 1 }}>
+        Continue On
+      </Typography>
+      <FormGroup sx={{ mb: 2 }}>
+        <FormControlLabel
+          control={
+            <Switch
+              checked={config.continueOn?.failure || false}
+              onChange={(e) => onChange('continueOn.failure', e.target.checked)}
+            />
+          }
+          label="Continue on Failure"
+        />
+        <FormControlLabel
+          control={
+            <Switch
+              checked={config.continueOn?.skipped || false}
+              onChange={(e) => onChange('continueOn.skipped', e.target.checked)}
+            />
+          }
+          label="Continue if Skipped"
+        />
+        <FormControlLabel
+          control={
+            <Switch
+              checked={config.continueOn?.markSuccess || false}
+              onChange={(e) =>
+                onChange('continueOn.markSuccess', e.target.checked)
+              }
+            />
+          }
+          label="Mark as Success"
+        />
+      </FormGroup>
+
+      {/* Mail On */}
+      <Typography variant="subtitle1" sx={{ mb: 1 }}>
+        Mail On
+      </Typography>
+      <FormGroup sx={{ mb: 2 }}>
+        <FormControlLabel
+          control={
+            <Switch
+              checked={config.mailOn?.success || false}
+              onChange={(e) => onChange('mailOn.success', e.target.checked)}
+            />
+          }
+          label="Success"
+        />
+        <FormControlLabel
+          control={
+            <Switch
+              checked={config.mailOn?.failure || false}
+              onChange={(e) => onChange('mailOn.failure', e.target.checked)}
+            />
+          }
+          label="Failure"
+        />
+      </FormGroup>
+    </>
   );
 };
 
@@ -915,6 +1294,22 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({
                 label="Failure"
               />
             </FormGroup>
+          </Box>
+        </Paper>
+      );
+
+    case 'subdag':
+      return (
+        <Paper sx={{ height: '100%', overflow: 'auto' }}>
+          <Box sx={{ p: 2 }}>
+            <Typography variant="h6" sx={{ mb: 2 }}>
+              Sub Workflow Configuration
+            </Typography>
+
+            <SubDagNodePanel
+              config={selectedNode.data.config || {}}
+              onChange={onNodeConfigChange}
+            />
           </Box>
         </Paper>
       );

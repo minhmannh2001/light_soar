@@ -13,7 +13,7 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import ConfigPanel from './ConfigPanel';
-import { TriggerNode, ActionNode, ConditionNode } from './nodes';
+import { TriggerNode, ActionNode, ConditionNode, SubDagNode } from './nodes';
 import NodeSilhouette from './NodeSilhouette';
 import NodeSelectorModal from './NodeSelectorModal';
 import * as yaml from 'js-yaml';
@@ -29,6 +29,7 @@ const nodeTypes = {
   trigger: TriggerNode,
   action: ActionNode,
   condition: ConditionNode,
+  subdag: SubDagNode,
 };
 
 const initialNodes: Node[] = [
@@ -378,6 +379,31 @@ const WorkflowBuilderContent: React.FC<WorkflowBuilderProps> = ({
                     success: false,
                     failure: false,
                   },
+                }
+              : type === 'subdag'
+              ? {
+                  name: `${newNodeId}`,
+                  description: 'Run a sub-workflow',
+                  run: '',
+                  params: '',
+                  output: '',
+                  retryPolicy: {
+                    limit: 2,
+                    intervalSec: 5,
+                  },
+                  continueOn: {
+                    failure: false,
+                    skipped: false,
+                    markSuccess: false,
+                  },
+                  mailOn: {
+                    success: false,
+                    failure: false,
+                  },
+                  depends:
+                    sourceNodeId && !sourceNodeId.startsWith('trigger-')
+                      ? [sourceNodeId]
+                      : [],
                 }
               : {}),
             // Only add to depends if source is not trigger node
